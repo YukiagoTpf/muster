@@ -1,0 +1,5 @@
+# The repo is LF on every platform. Without this, a Windows checkout with
+# core.autocrlf=true writes CRLF: bin/agentswap.mjs's `#!/usr/bin/env node\r`
+# then fails when the same tree is used from WSL or Linux, and SKILL.md fails
+# the frontmatter check.
+* text=auto eol=lf
