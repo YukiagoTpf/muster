@@ -214,8 +214,12 @@ func TestSettingsEditorSavesWithCompareAndSwap(t *testing.T) {
 	if f := s.settingsFile(); !strings.Contains(f, `"DISABLE_AUTOUPDATER": "0"`) || !strings.Contains(f, "sk-default") {
 		t.Fatalf("saved:\n%s", f)
 	}
-	if code := s.call("GET", "/api/settings?platform=macos", "", nil); code != 400 {
-		t.Fatalf("another platform without sync: %d", code)
+	other := syncrepo.Platforms[0]
+	if other == v.Doc.Platform {
+		other = syncrepo.Platforms[1]
+	}
+	if code := s.call("GET", "/api/settings?platform="+other, "", nil); code != 400 {
+		t.Fatalf("another platform (%s) without sync: %d", other, code)
 	}
 }
 
