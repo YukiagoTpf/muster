@@ -247,6 +247,8 @@ The codebase is dependency-free Node.js ESM. `src/` is the library + commands, `
 
 See [docs/architecture.md](docs/architecture.md) for the design, [docs/sync.md](docs/sync.md) for multi-machine sync, [docs/v1.md](docs/v1.md) for what v1 does and doesn't cover, and [docs/index.md](docs/index.md) for the doc routing table (which docs to update when a path changes).
 
+Planned successor, Muster (not implemented yet): [docs/rebrand/vision.md](docs/rebrand/vision.md).
+
 ## License
 
 MIT
