@@ -36,18 +36,21 @@ func quotaSources(sys IO, r *credential.Registry) []quota.Source {
 	}
 	// A local login is a source only where that client is logged in.
 	if path := quota.CodexAuthPath(sys.Getenv, home); exists(path) {
-		sources = append(sources, quota.Codex(path, codexAPI(sys)))
+		sources = append(sources, quota.Codex(path, apiBase(sys, "MUSTER_CODEX_API", "https://chatgpt.com/backend-api")))
+	}
+	if path := quota.GrokAuthPath(home); exists(path) {
+		sources = append(sources, quota.Grok(path, apiBase(sys, "MUSTER_GROK_API", "https://cli-chat-proxy.grok.com")))
 	}
 	return sources
 }
 
-// codexAPI is the ChatGPT backend the Codex limits come from
-// (MUSTER_CODEX_API overrides it for tests).
-func codexAPI(sys IO) string {
-	if u := sys.Getenv("MUSTER_CODEX_API"); u != "" {
+// apiBase is a local-login source's API base: the real one, or the env
+// override tests point at a fake server.
+func apiBase(sys IO, override, real string) string {
+	if u := sys.Getenv(override); u != "" {
 		return u
 	}
-	return "https://chatgpt.com/backend-api"
+	return real
 }
 
 func exists(path string) bool {

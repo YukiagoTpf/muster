@@ -66,6 +66,7 @@ Quota belongs to a **subscription account** (5-hour, weekly, monthly … windows
 
 - **local logins** of other clients, each a source only on a machine where that client is logged in, read-only, with the access token used as is and **never refreshed** — refreshing would rotate the client's refresh token and log the client out. A token past its expiry reports so, and the client renews it the next time it runs:
   - **Codex** — the Codex CLI's ChatGPT login (`$CODEX_HOME/auth.json`, default `~/.codex/auth.json`) → `GET https://chatgpt.com/backend-api/wham/usage`: plan, the rate-limit windows (named by length, e.g. a 604800 s window is `week`), and the credit balance.
+  - **Grok** — the Grok CLI's login (`~/.grok/auth.json`) → `GET https://cli-chat-proxy.grok.com/v1/billing?format=credits` (without `format=credits` the endpoint answers in an older monthly shape whose numbers are all zero): the credit usage of the current period and per product. Its access token lives about six hours and only the CLI renews it, so a machine that hasn't run grok lately shows the login as expired.
 
 Every source is isolated: one that fails — network, HTTP status, expired login — reports its error in its own place and the others are unaffected. `quota.Merge` folds the reports into one list in which an account reachable through several gateway keys appears once (the freshest observation wins; `via` lists every key). A window whose reset time has passed since it was observed shows as reset rather than with a stale percentage.
 

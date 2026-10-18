@@ -220,3 +220,39 @@ func TestCodexRefusals(t *testing.T) {
 		t.Errorf("api key login: %q", r.Err)
 	}
 }
+
+func TestGrokReadsCreditsWithoutRefreshing(t *testing.T) {
+	var gotAuth, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotQuery = r.Header.Get("Authorization"), r.URL.RawQuery
+		w.Write([]byte(`{"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-10-11T14:17:40.119067+00:00","end":"2026-10-18T14:17:40.119067+00:00"},
+		  "creditUsagePercent":12,"productUsage":[{"product":"GrokChat","usagePercent":12},{"product":"GrokBuild"}]}}`))
+	}))
+	defer srv.Close()
+	auth := filepath.Join(t.TempDir(), "auth.json")
+	original := `{"https://auth.x.ai::client":{"key":"gk","auth_mode":"oidc","refresh_token":"rt","expires_at":"` + time.Now().Add(time.Hour).UTC().Format(time.RFC3339Nano) + `"}}`
+	writeFile(t, auth, original)
+
+	r := Collect(context.Background(), srv.Client(), []Source{Grok(auth, srv.URL)})[0]
+	if r.Err != "" {
+		t.Fatal(r.Err)
+	}
+	if gotAuth != "Bearer gk" || gotQuery != "format=credits" {
+		t.Errorf("auth = %q, query = %q", gotAuth, gotQuery)
+	}
+	a := r.Accounts[0]
+	if a.Platform != "grok" || len(a.Windows) != 1 || a.Windows[0].Kind != "week" || a.Windows[0].Used != 0.12 || a.Note != "GrokChat 12%" {
+		t.Fatalf("account = %+v", a)
+	}
+	if b, _ := os.ReadFile(auth); string(b) != original {
+		t.Fatal("the Grok login file was modified")
+	}
+}
+
+func TestGrokReportsAnExpiredLogin(t *testing.T) {
+	auth := filepath.Join(t.TempDir(), "auth.json")
+	writeFile(t, auth, `{"https://auth.x.ai::c":{"key":"gk","expires_at":"2020-01-01T00:00:00Z"}}`)
+	if r := Collect(context.Background(), http.DefaultClient, []Source{Grok(auth, "http://127.0.0.1:1")})[0]; !strings.Contains(r.Err, "open grok once") {
+		t.Fatalf("expired: %q", r.Err)
+	}
+}
