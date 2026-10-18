@@ -86,11 +86,14 @@
 
 ## 7. 待验证（实现前实测）
 
-1. `--settings` 的 `env` 里把变量设成空字符串，是否等同于没有设置。默认凭据防泄漏就靠这一点。
-2. skills 安装器的更新和检查子命令叫什么、怎么用。
-3. Codex（ChatGPT）、Cursor、Grok 各自的额度接口和需要的字段，以及 token 过期时的表现。
-4. AsterGate 能不能把 Claude Code 的请求转给 Codex 池。这是在 Claude Code 里使用 Codex 池 key 的前提。
-5. 公司电脑上有没有 managed settings 覆盖 `--settings`。
+1. ✅ **已验证（2026-10-18，Claude Code 2.1.296）**：`--settings` 的 `env` 会逐个变量覆盖用户设置，设成空字符串等同于没有设置。实测时用户设置把 sonnet 映射到 `claude-sonnet-5-5[1M]`：不覆盖时用的是 `[1M]`；覆盖成 haiku 时用的是 `claude-haiku-5-5`；覆盖成 `""` 时回到内置的 `claude-sonnet-5-5`。这次只验证了模型映射这类变量。如果以后要接直连订阅（`CLAUDE_CODE_OAUTH_TOKEN`），还要另外验证 `ANTHROPIC_AUTH_TOKEN=""` 时，认证优先级是否也把它当成没有设置。
+2. ✅ **已查明（skills 1.5.22）**：装机清单里的 skills 条目可以写成：安装 `npx skills add <来源> -g -a claude-code -s <名称> -y`，更新 `npx skills update -g -y`。这个版本**没有检查命令**，检查一栏留空；`npx skills ls -g --json` 只能列出已安装的 skills。
+3. 额度接口（2026-10-18 用本机登录实测，只读，没有刷新 token）：
+   - ✅ **Codex**：`GET https://chatgpt.com/backend-api/wham/usage`，带 `Authorization: Bearer <access_token>` 和 `ChatGPT-Account-Id: <account_id>`，两个值都来自 `~/.codex/auth.json`。返回 `plan_type`，以及 `rate_limit.primary_window` 和 `secondary_window`，每个窗口有 `used_percent`、`limit_window_seconds`、`reset_at`。实测 Pro 只有一个 7 天窗口，`secondary_window` 为 `null`；另外有 `credits.balance`。access token 有效期约 10 天，由 Codex CLI 负责刷新。
+   - ✅ **Cursor**：Connect RPC 接口 `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage` 和 `GetPlanInfo`，请求体为 `{}`，带 `Authorization: Bearer <cursorAuth/accessToken>`、`Content-Type: application/json`、`Connect-Protocol-Version: 1`。返回计费周期的起止时间，以及 `planUsage` 的 `limit` / `totalSpend` / `remaining`（单位看起来是美分）和 `totalPercentUsed`。`totalPercentUsed` 的单位和 `totalSpend / limit` 对不上，实现时要核对。`GetPlanInfo` 返回套餐名（实测是 Ultra）。
+   - ⏳ **Grok**：Grok CLI 的 `/usage` 会显示账号额度（Usage limit），但它调用的接口要等本机 `grok login` 之后才能抓到。登录信息在 `~/.grok/auth.json`。
+4. AsterGate 能不能把 Claude Code 的请求转给 Codex 池。这是在 Claude Code 里使用 Codex 池 key 的前提。目前手上只有 Claude 池的 key，还测不了。
+5. 公司电脑上有没有 managed settings 覆盖 `--settings`。目前这台 Windows 机器上的 `C:/Program Files/ClaudeCode/managed-settings.json` 只设置了代理变量（`127.0.0.1:17971`），不影响 `ANTHROPIC_*` 的覆盖；公司电脑还需要单独检查。
 6. 公司网络能不能访问 AsterGate。
 
 ## 8. 待定
