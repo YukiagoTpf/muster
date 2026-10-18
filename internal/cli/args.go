@@ -4,7 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
+	"regexp"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 // flagSet is the standard flag set; the alias keeps command definitions short.
@@ -73,4 +77,26 @@ func (l *kvList) Set(s string) error {
 	}
 	*l = append(*l, kv{k, v})
 	return nil
+}
+
+var ansiEscape = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
+
+// plainWriter drops ANSI escapes, for output that is not a terminal.
+type plainWriter struct{ w io.Writer }
+
+func (p plainWriter) Write(b []byte) (int, error) {
+	if _, err := p.w.Write(ansiEscape.ReplaceAll(b, nil)); err != nil {
+		return 0, err
+	}
+	return len(b), nil
+}
+
+// colorOut is sys with colors kept only for a terminal and when NO_COLOR is
+// unset.
+func colorOut(sys IO) IO {
+	if f, ok := sys.Out.(*os.File); ok && sys.Getenv("NO_COLOR") == "" && term.IsTerminal(int(f.Fd())) {
+		return sys
+	}
+	sys.Out = plainWriter{sys.Out}
+	return sys
 }

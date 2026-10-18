@@ -11,6 +11,7 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | `internal/claude` | Everything Muster knows about Claude Code: its settings path, which env keys belong to the provider, the model-alias env keys. Another agent would get its own package. |
 | `internal/credential` | The credential registry. |
 | `internal/launch` | Turning a credential into a running instance, and the last-launch state. |
+| `internal/quota` | Reading quota from every source, merging it into one account list, caching it, and the shared bar/percentage rendering. |
 | `internal/picker` | The interactive chooser behind a bare `muster`. |
 | `internal/fakeagent` | A stand-in agent for tests (the test binary re-executes itself as one). |
 | `internal/platform` | Every OS difference. Nothing outside it branches on the operating system. |
@@ -56,6 +57,18 @@ Each launch records the credential, and the model per credential, in `state.json
 The default credential is whatever provider env `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) sets: it is what plain `claude` and IDE plugins use, since they don't go through Muster. `muster default` reports which registered credential that is — `match`, `drift` (a credential's base URL and key, but other provider keys differ), `unregistered` or `none` — and `muster default <credential>` makes one the default.
 
 Setting it is the one place Muster writes the agent's settings file, so it edits as little as it can: the provider keys in `env` are replaced by the credential's provider env, written where the first of them stood; every other key, top level or in `env`, keeps its value and its place (values are carried verbatim and the file is re-indented with two spaces). A file it cannot read as a JSON object is refused and left untouched. The previous file is backed up first (`<MUSTER_HOME>/backups/settings-<time>-<pid>.json`, newest 20 kept), the write is atomic, keeps the file's mode, and goes through a symlink to the file it points at. All of it happens under the store lock; the agent itself does not take that lock, so an edit it makes in the same instant can still lose — the backup is the way back.
+
+## Quota
+
+Quota belongs to a **subscription account** (5-hour, weekly, monthly … windows, each with a used fraction and a reset time); a credential has none of its own, only what it spent. `muster quota` reads every source this machine has, concurrently, each bounded by 10 s:
+
+- **gateway credentials** (`provider: astergate`) — `GET <baseURL>/me/usage` with the credential's key. It is read-only and spends no quota. It answers with the subscription accounts in the key's pool and what the key spent today, this week and this month (cut in the `timezone` Muster sends: `TZ`, else the `Etc/GMT±N` zone of the local offset). Only account-wide windows count; a model-scoped window is not the account's limit.
+
+Every source is isolated: one that fails — network, HTTP status, expired login — reports its error in its own place and the others are unaffected. `quota.Merge` folds the reports into one list in which an account reachable through several gateway keys appears once (the freshest observation wins; `via` lists every key). A window whose reset time has passed since it was observed shows as reset rather than with a stale percentage.
+
+Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ] }`.
+
+Human output is colored only on a terminal and when `NO_COLOR` is unset; anywhere else the escapes are stripped.
 
 ## Picker
 

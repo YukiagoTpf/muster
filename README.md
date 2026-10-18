@@ -36,6 +36,9 @@ muster run codex-pool --dry-run        # what would be set, blanked and stripped
 ```
 
 ```bash
+muster quota                # every subscription account's 5h / weekly quota, and what each key spent
+muster quota --cached       # the last numbers, without waiting on the network
+
 muster default              # which credential plain `claude` and IDE plugins use
 muster default codex-pool   # make it codex-pool (rewrites only the provider part of settings.json, backs it up first)
 ```
