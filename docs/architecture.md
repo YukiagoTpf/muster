@@ -75,6 +75,12 @@ Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait
 
 Human output is colored only on a terminal and when `NO_COLOR` is unset; anywhere else the escapes are stripped.
 
+## Statusline
+
+`muster statusline` prints the quota line of a Claude Code statusline: the plan of the account the session is pinned to, each of its windows as a bar with its reset time, and what the credential spent today; `switched → <plan>` leads the line for ten minutes after the gateway moves the session to another account. `--lang zh` switches the labels to Chinese. A statusline script calls it with the statusline JSON on stdin (it reads `session_id`) and prints its own first line itself.
+
+A render must take milliseconds — Claude Code cancels a slow statusline — so it never touches the network. The session's credential is the registered gateway credential whose base URL and key match the provider env the session carries (a launch or the default credential put it there); a session on anything else prints nothing. Each session has its own state, `<MUSTER_HOME>/statusline/<session>.json`: the render reads it and, once it is due, marks the next refresh a minute out and starts a detached `muster __refresh-statusline <session>`, which asks the gateway with `X-Claude-Code-Session-Id` so the answer marks the pinned account. A changed account id between two refreshes is a switch. Until the gateway pins the session, the line says so and the state is refreshed every 10 s. A failed refresh keeps the last known account and says why (`HTTP 401`, network). States not refreshed for a week are dropped.
+
 ## Picker
 
 A bare `muster` in a terminal is the quickest launch: a list of credentials — each gateway credential with the windows of the account in its pool that has the most headroom (the one a new session can count on), then provider, gateway host and mapped models — then that credential's model aliases plus the agent's own default; Enter launches, so a repeat of the last launch is two keypresses. Arrows or j/k move, a digit picks a row directly, Esc goes back, q quits. A credential that maps no alias skips the model screen. Without a terminal on both ends a bare `muster` prints help instead.
