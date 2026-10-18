@@ -15,5 +15,5 @@ status: accepted
 ## Consequences
 
 - CONTRIBUTING 里"零依赖、只用 Node 标准库"的规则要改写为"产物是单个静态二进制；每引入一个依赖都要单独说明理由"。第一个依赖是 `modernc.org/sqlite`（纯 Go，不需要 cgo），用来只读打开 Cursor 的 `state.vscdb`。
-- 现有 Node 实现在 Windows 上踩过的坑要在 Go 里重新处理，旧代码在 `v0.4.0` 标签下可以参考：`.cmd` shim 要经 `cmd.exe` 启动、`where` 返回结果的筛选（`src/launch.mjs`），rename 遇到 EPERM 时重试（`src/store.mjs`）。
+- 现有 Node 实现在 Windows 上踩过的坑要在 Go 里重新处理，旧代码在仓库的第一个提交（AgentSwap v0.4.0）里可以参考：`.cmd` shim 要经 `cmd.exe` 启动、`where` 返回结果的筛选（`src/launch.mjs`），rename 遇到 EPERM 时重试（`src/store.mjs`）。
 - Go 可以直接用操作系统级的文件锁（`flock` / `LockFileEx`），持锁进程死掉时由内核释放。所以 Node 版为了在没有 OS 锁的情况下做到安全，而写的 `link(2)` 原子创建、抢占死锁和 ABA 防护，都不再需要。

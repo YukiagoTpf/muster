@@ -4,7 +4,7 @@ Agent entrypoint for working on this repo. Read this first; it stays short — l
 
 ## Project model
 
-Muster launches coding agents per credential and shows every subscription's quota at a glance. It is a Go rewrite of AgentSwap (the Node tool, preserved at tag `v0.4.0` and on `main`), developed on the `muster` branch. The plan is [docs/vision.md](docs/vision.md), the vocabulary is [CONTEXT.md](CONTEXT.md) — use its terms (credential, subscription account, default credential, shared settings, …) in code and docs. Design: [docs/architecture.md](docs/architecture.md); decisions: [docs/adr/](docs/adr/).
+Muster launches coding agents per credential and shows every subscription's quota at a glance. It is a Go rewrite of AgentSwap, a Node tool whose last release (v0.4.0) is the repo's first commit. The plan is [docs/vision.md](docs/vision.md), the vocabulary is [CONTEXT.md](CONTEXT.md) — use its terms (credential, subscription account, default credential, shared settings, …) in code and docs. Design: [docs/architecture.md](docs/architecture.md); decisions: [docs/adr/](docs/adr/).
 
 Three mechanisms carry the tool:
 
@@ -27,7 +27,7 @@ The binding rules live in [CONTRIBUTING.md](CONTRIBUTING.md) — read it. The on
 - **Every direct dependency is justified** in CONTRIBUTING.md's dependency table; `go test ./...` enforces it.
 - **Atomic commits** — one logical change per commit, conventional subject; commit only named files (`git add <paths>`, never `-A`).
 - **Every mutating command goes through `Store.WithLock`**; `--json` contracts are versioned (`{ "version": 1, ... }`).
-- **Never push or tag** until the user declares the Muster rewrite done.
+- **Push or tag only when the user asks** — a `v*` tag publishes a release (CONTRIBUTING → Releasing).
 - Docs update with code — the routing table in [docs/index.md](docs/index.md) maps changed paths to owning docs, and `go test ./...` enforces it.
 
 ## Workflow

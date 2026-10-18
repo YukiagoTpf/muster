@@ -4,7 +4,7 @@
 
 Muster keeps your coding-agent credentials in one place, shows how much quota every subscription account has left, and launches Claude Code with the credential and model you pick — one instance per terminal pane, each with its own provider, none touching the others.
 
-> **Status: in development.** Muster is a Go rewrite of AgentSwap. The released Node tool is still on npm as [`agentswap@0.4.0`](https://www.npmjs.com/package/agentswap) (source: tag `v0.4.0`). The plan is [docs/vision.md](docs/vision.md).
+> Muster replaces AgentSwap, a Node tool on npm ([`agentswap`](https://www.npmjs.com/package/agentswap), now deprecated); this repo's first commit is its last release, v0.4.0.
 
 ## Install
 
