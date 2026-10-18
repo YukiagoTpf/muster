@@ -38,7 +38,7 @@ The registry is two files in the data directory:
 - `credentials.json` — `{ "version": 1, "credentials": [ { name, provider, baseURL, env } ] }`. `env` is the rest of the provider env the credential carries: model mapping (`ANTHROPIC_DEFAULT_<ALIAS>_MODEL`), display names, headers. It never holds a secret: a key that looks like one (`…_TOKEN`, `…_KEY`, …) is refused, because this file is not encrypted.
 - `secrets.json` (0600) — `{ "version": 1, "secrets": { name: key } }`. The key is the only secret a credential has; a launch sends it as `ANTHROPIC_AUTH_TOKEN`.
 
-Names are matched exactly but kept unique ignoring case. Secrets are written before the registry, so a crash between the two leaves at worst an orphaned key, never a credential whose key was dropped. A key never travels on a command line: `cred add` takes it from stdin or imports it from `settings.json` (`--from-settings` imports the base URL, the key and every non-secret provider key, and leaves shared settings behind).
+Names are matched exactly but kept unique ignoring case. Secrets are written before the registry, so a crash between the two leaves at worst an orphaned key, never a credential whose key was dropped. `cred edit` changes a credential in place (its name stays; `--key-stdin` replaces the key, otherwise the key is kept). A key never travels on a command line: `cred add` takes it from stdin or imports it from `settings.json` (`--from-settings` imports the base URL, the key and every non-secret provider key, and leaves shared settings behind).
 
 ## Launch env ownership
 

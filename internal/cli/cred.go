@@ -153,6 +153,87 @@ func reportCred(sys IO, verb string, c credential.Credential, view credential.Vi
 	return 0
 }
 
+// stringList is a repeatable string flag.
+type stringList []string
+
+func (l *stringList) String() string     { return strings.Join(*l, ",") }
+func (l *stringList) Set(s string) error { *l = append(*l, s); return nil }
+
+func runCredEdit(sys IO, args []string) int {
+	var (
+		provider, baseURL     string
+		models, extra         kvList
+		unsetModels, unsetEnv stringList
+		keyStdin, asJSON      bool
+	)
+	pos, ok := parseArgs(sys, "cred edit", args, 1, func(f *flagSet) {
+		f.StringVar(&provider, "provider", "", "new provider")
+		f.StringVar(&baseURL, "base-url", "", "new base URL")
+		f.Var(&models, "model", "set a model mapping alias=model (repeatable)")
+		f.Var(&unsetModels, "unset-model", "drop a model mapping by alias (repeatable)")
+		f.Var(&extra, "env", "set other provider env KEY=VALUE (repeatable)")
+		f.Var(&unsetEnv, "unset-env", "drop a carried env key (repeatable)")
+		f.BoolVar(&keyStdin, "key-stdin", false, "replace the key with the one on stdin")
+		f.BoolVar(&asJSON, "json", false, "machine-readable output")
+	})
+	if !ok {
+		return 2
+	}
+	var key string
+	if keyStdin {
+		if key, ok = readKey(sys); !ok {
+			return 1
+		}
+		if key == "" {
+			return usageError(sys, "cred edit", "--key-stdin: stdin holds no key")
+		}
+	}
+	s, err := store.Open(sys.Getenv)
+	if err != nil {
+		return fail(sys, err)
+	}
+	var c credential.Credential
+	var view credential.View
+	err = credential.Update(s, func(r *credential.Registry) error {
+		old, ok := r.Get(pos[0])
+		if !ok {
+			return fmt.Errorf("no credential named %q (see `muster cred list`)", pos[0])
+		}
+		c = old
+		c.Env = map[string]string{}
+		for k, v := range old.Env {
+			c.Env[k] = v
+		}
+		if provider != "" {
+			c.Provider = provider
+		}
+		if baseURL != "" {
+			c.BaseURL = baseURL
+		}
+		for _, alias := range unsetModels {
+			delete(c.Env, claude.ModelEnvKey(alias))
+		}
+		for _, k := range unsetEnv {
+			delete(c.Env, k)
+		}
+		for _, kv := range models {
+			c.Env[claude.ModelEnvKey(kv.key)] = kv.value
+		}
+		for _, kv := range extra {
+			c.Env[kv.key] = kv.value
+		}
+		if err := r.Edit(c, key); err != nil {
+			return err
+		}
+		view = r.ViewOf(c)
+		return nil
+	})
+	if err != nil {
+		return fail(sys, err)
+	}
+	return reportCred(sys, "updated", c, view, asJSON)
+}
+
 func runCredRm(sys IO, args []string) int {
 	var asJSON bool
 	pos, ok := parseArgs(sys, "cred rm", args, 1, func(f *flagSet) { f.BoolVar(&asJSON, "json", false, "machine-readable output") })

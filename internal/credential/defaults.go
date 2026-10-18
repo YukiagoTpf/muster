@@ -60,6 +60,24 @@ func Update(s *store.Store, fn func(*Registry) error) error {
 	})
 }
 
+// Edit replaces a credential's provider, base URL and carried env; an empty
+// key keeps the stored one. The name stays.
+func (r *Registry) Edit(c Credential, key string) error {
+	if err := Validate(c); err != nil {
+		return err
+	}
+	for i, existing := range r.Credentials {
+		if existing.Name == c.Name {
+			r.Credentials[i] = c
+			if key != "" {
+				r.secrets[c.Name] = key
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: %s", ErrNotFound, c.Name)
+}
+
 // FromSettings is the credential the agent's settings file holds as its
 // provider env — base URL, key and every non-secret provider key — for
 // registering what a machine already uses.

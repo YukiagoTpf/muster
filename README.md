@@ -25,6 +25,7 @@ muster cred add codex-pool --provider astergate --base-url https://gw.example.co
   --model opus=gpt-x --model haiku=gpt-x-mini --key-stdin < key.txt
 
 muster cred list            # add --json for agents; keys are never shown
+muster cred edit codex-pool --model sonnet=gpt-x --unset-model haiku   # --key-stdin replaces the key
 muster cred rm codex-pool
 
 # launch Claude Code in this pane: pick a credential, then a model — the last launch is preselected

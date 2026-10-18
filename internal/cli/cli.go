@@ -48,6 +48,7 @@ func init() {
 		{"default", "muster default [<credential>] [--json]", "Show, or set, the credential plain `claude` and IDE plugins use (the provider part of settings.json)", runDefault},
 		{"cred list", "muster cred list [--json]", "List credentials (never shows keys)", runCredList},
 		{"cred add", "muster cred add <name> --provider <p> (--from-settings | --base-url <url>) [--model alias=model]... [--env K=V]... [--key-stdin] [--json]", "Register a credential; the key comes from stdin or settings.json, never argv", runCredAdd},
+		{"cred edit", "muster cred edit <name> [--provider <p>] [--base-url <url>] [--model alias=model]... [--unset-model alias]... [--env K=V]... [--unset-env K]... [--key-stdin] [--json]", "Change a credential; --key-stdin replaces its key", runCredEdit},
 		{"cred rm", "muster cred rm <name> [--json]", "Remove a credential and its key", runCredRm},
 		{"sync init", "muster sync init <repo> [--passphrase-stdin] [--json]", "Sync this machine through a private git repo: an empty repo is created from it, a used one restores it", runSyncInit},
 		{"sync status", "muster sync status [--json]", "Show what the next sync sends, and the tracked files (offline)", runSyncStatus},

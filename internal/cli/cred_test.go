@@ -175,3 +175,41 @@ func openStoreFor(t *testing.T, sb *sandbox) *store.Store {
 	}
 	return s
 }
+
+func TestCredEdit(t *testing.T) {
+	sb := newSandbox(t)
+	if code, _, errOut := sb.run(t, "sk-1", "cred", "add", "pool", "--provider", "astergate", "--base-url", "https://a.example",
+		"--model", "opus=o1", "--model", "haiku=h1", "--key-stdin"); code != 0 {
+		t.Fatal(errOut)
+	}
+	code, out, errOut := sb.run(t, "", "cred", "edit", "pool", "--base-url", "https://b.example", "--model", "opus=o2", "--unset-model", "haiku", "--json")
+	if code != 0 {
+		t.Fatalf("edit: %s", errOut)
+	}
+	var got struct{ Credential credential.View }
+	json.Unmarshal([]byte(out), &got)
+	if c := got.Credential; c.BaseURL != "https://b.example" || len(c.Models) != 1 || c.Models[0].Model != "o2" || !c.HasKey {
+		t.Fatalf("edited = %+v", c)
+	}
+	if code, _, _ := sb.run(t, "sk-2", "cred", "edit", "pool", "--key-stdin"); code != 0 {
+		t.Fatal("replace the key")
+	}
+	if secrets := readFile(t, filepath.Join(sb.env["MUSTER_HOME"], "secrets.json")); !strings.Contains(secrets, "sk-2") {
+		t.Fatal("the key was not replaced")
+	}
+	if code, _, errOut := sb.run(t, "", "cred", "edit", "pool", "--env", "ANTHROPIC_API_KEY=x"); code != 1 || !strings.Contains(errOut, "secret") {
+		t.Fatalf("a secret in env: exit %d, %s", code, errOut)
+	}
+	if code, _, _ := sb.run(t, "", "cred", "edit", "nope", "--base-url", "https://c.example"); code != 1 {
+		t.Fatal("editing an unknown credential")
+	}
+}
+
+func readFile(t *testing.T, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
