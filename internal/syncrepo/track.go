@@ -11,8 +11,12 @@ import (
 )
 
 // homeRel names a file under the home directory as a slash path relative to
-// it — how the repo names a tracked file on every machine of the platform.
+// it — how the repo names a tracked file on every machine of the platform. A
+// leading ~ is the home directory, as the page writes it.
 func (r *Repo) homeRel(p string) (string, error) {
+	if rest, ok := strings.CutPrefix(p, "~"); ok && (rest == "" || rest[0] == '/' || rest[0] == '\\') {
+		p = filepath.Join(r.m.Home, rest)
+	}
 	abs, err := filepath.Abs(p)
 	if err != nil {
 		return "", err

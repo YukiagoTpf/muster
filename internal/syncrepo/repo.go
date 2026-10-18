@@ -18,6 +18,8 @@ import (
 
 	"filippo.io/age"
 
+	"github.com/YukiagoTpf/muster/internal/claude"
+	"github.com/YukiagoTpf/muster/internal/platform"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
@@ -52,6 +54,27 @@ type Machine struct {
 	Platform string
 	Host     string   // names the machine in the repo's history
 	Env      []string // the environment git runs in
+}
+
+// Here is this machine, from its environment.
+func Here(getenv func(string) string, environ func() []string) (Machine, error) {
+	s, err := store.Open(getenv)
+	if err != nil {
+		return Machine{}, err
+	}
+	settings, err := claude.SettingsPath(getenv)
+	if err != nil {
+		return Machine{}, err
+	}
+	home, err := platform.UserHome(getenv)
+	if err != nil {
+		return Machine{}, err
+	}
+	host, err := os.Hostname()
+	if err != nil {
+		host = "unknown"
+	}
+	return Machine{Store: s, Settings: settings, Home: home, Platform: platform.Name(), Host: host, Env: environ()}, nil
 }
 
 // Repo is a machine's clone of its sync repo.

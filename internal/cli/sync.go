@@ -4,37 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"golang.org/x/term"
 
-	"github.com/YukiagoTpf/muster/internal/claude"
-	"github.com/YukiagoTpf/muster/internal/platform"
-	"github.com/YukiagoTpf/muster/internal/store"
 	"github.com/YukiagoTpf/muster/internal/syncrepo"
 )
 
 // syncMachine is this machine as the sync sees it.
-func syncMachine(sys IO) (syncrepo.Machine, error) {
-	s, err := store.Open(sys.Getenv)
-	if err != nil {
-		return syncrepo.Machine{}, err
-	}
-	settings, err := claude.SettingsPath(sys.Getenv)
-	if err != nil {
-		return syncrepo.Machine{}, err
-	}
-	home, err := platform.UserHome(sys.Getenv)
-	if err != nil {
-		return syncrepo.Machine{}, err
-	}
-	host, err := os.Hostname()
-	if err != nil {
-		host = "unknown"
-	}
-	return syncrepo.Machine{Store: s, Settings: settings, Home: home, Platform: platform.Name(), Host: host, Env: sys.Environ()}, nil
-}
+func syncMachine(sys IO) (syncrepo.Machine, error) { return syncrepo.Here(sys.Getenv, sys.Environ) }
 
 func openRepo(sys IO) (*syncrepo.Repo, error) {
 	m, err := syncMachine(sys)

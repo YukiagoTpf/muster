@@ -366,6 +366,9 @@ func TestTrackedFilesFollowTheirMachine(t *testing.T) {
 	if name, err := ra.Track(a.local(".claude/statusline.sh")); err != nil || name != "~/.claude/statusline.sh" {
 		t.Fatalf("track: %q %v", name, err)
 	}
+	if name, err := ra.Track("~/.claude/statusline.sh"); err != nil || name != "~/.claude/statusline.sh" {
+		t.Fatalf("a ~ path: %q %v", name, err)
+	}
 	for _, bad := range []string{a.Settings, filepath.Join(a.Store.Dir, "secrets.json"), filepath.Join(t.TempDir(), "elsewhere")} {
 		if _, err := ra.Track(bad); err == nil {
 			t.Errorf("tracked %s", bad)
@@ -473,5 +476,93 @@ func TestSyncUndoesAMergeLeftHalfDone(t *testing.T) {
 	rb.git.run("merge", "-q", "--no-edit", rb.upstream()) // conflicts, and is left so
 	if res := b.sync(""); len(res.Conflicts) != 1 || strings.Contains(b.settings(), "<<<<<<<") {
 		t.Fatalf("after a half-done merge: %+v\n%s", res, b.settings())
+	}
+}
+
+func TestSharedDocsSaveWithCompareAndSwap(t *testing.T) {
+	t.Parallel()
+	a := newMachine(t, "a", "windows")
+	a.writeSettings(settingsA)
+	d, err := a.SharedDoc()
+	if err != nil || !d.Local || !d.Exists || strings.Contains(d.Content, "ANTHROPIC_") || d.Hash == "" {
+		t.Fatalf("doc: %+v %v", d, err)
+	}
+	edited := strings.Replace(d.Content, `"Stop": "a"`, `"Stop": "edited"`, 1)
+	if _, err := a.SaveSharedDoc([]byte(edited), "stale"); !errors.Is(err, ErrChanged) {
+		t.Fatalf("a stale hash: %v", err)
+	}
+	if _, err := a.SaveSharedDoc([]byte(`{"env":{"ANTHROPIC_BASE_URL":"x"}}`), d.Hash); err == nil || !strings.Contains(err.Error(), "credential") {
+		t.Fatalf("provider env in the shared settings: %v", err)
+	}
+	if _, err := a.SaveSharedDoc([]byte(`[]`), d.Hash); err == nil {
+		t.Fatal("not an object")
+	}
+	d2, err := a.SaveSharedDoc([]byte(edited), d.Hash)
+	if err != nil || d2.Hash == d.Hash {
+		t.Fatalf("save: %+v %v", d2, err)
+	}
+	if s := a.settings(); !strings.Contains(s, `"Stop": "edited"`) || !strings.Contains(s, "sk-default-a") {
+		t.Fatalf("settings after the save keep the default credential:\n%s", s)
+	}
+	if backups, _ := filepath.Glob(filepath.Join(a.Store.Dir, "backups", "settings-*.json")); len(backups) != 1 {
+		t.Fatalf("backups: %v", backups)
+	}
+
+	// Another platform's copy lives in the clone and refuses secrets.
+	url := remote(t)
+	r, _ := a.join(url)
+	mac, err := r.SharedDoc("macos")
+	if err != nil || mac.Local || mac.Exists || mac.Hash != "" {
+		t.Fatalf("a platform not in the repo yet: %+v %v", mac, err)
+	}
+	if _, err := r.SaveSharedDoc("macos", []byte(`{"env":{"GITHUB_TOKEN":"x"}}`), ""); err == nil {
+		t.Fatal("a secret went to the repo copy")
+	}
+	if _, err := r.SaveSharedDoc("macos", []byte(`{"hooks":{"Stop":"mac"}}`), ""); err != nil {
+		t.Fatal(err)
+	}
+	if res := a.sync(""); listed(res.Sent) != "" || func() bool { st, _ := r.Status(); return len(st.Pending) != 0 }() {
+		t.Fatalf("another platform's copy is no item of this machine: %+v", res)
+	}
+	m := newMachine(t, "mac", "macos")
+	m.join(url)
+	if !strings.Contains(m.settings(), `"Stop": "mac"`) {
+		t.Fatalf("the mac got:\n%s", m.settings())
+	}
+	if _, err := r.SharedDoc("plan9"); err == nil {
+		t.Fatal("an unknown platform")
+	}
+}
+
+func TestSidesShowBothVersionsWithoutKeys(t *testing.T) {
+	t.Parallel()
+	url := remote(t)
+	a := newMachine(t, "a", "windows")
+	a.writeSettings(settingsA)
+	a.addCredential("x", "sk-1")
+	a.join(url)
+	b := newMachine(t, "b", "windows")
+	b.join(url)
+	set := func(m *machine, key string) {
+		m.Store.WithLock(func() error {
+			r, _ := credential.Load(m.Store)
+			r.Remove("x")
+			r.Add(credential.Credential{Name: "x", Provider: "astergate", BaseURL: "https://" + key + ".example"}, key)
+			return r.Save(m.Store)
+		})
+	}
+	set(a, "sk-a")
+	a.sync("")
+	set(b, "sk-b")
+	if res := b.sync(""); listed(res.Conflicts) != "credential x" {
+		t.Fatalf("conflicts: %+v", res)
+	}
+	rb, _ := Open(b.Machine)
+	s, err := rb.Sides(Item{"credential", "x"})
+	if err != nil || !strings.Contains(s.Here, "sk-b.example") || !strings.Contains(s.There, "sk-a.example") || !strings.Contains(s.Here, "key differs") {
+		t.Fatalf("sides: %+v %v", s, err)
+	}
+	if strings.Contains(s.Here+s.There, "sk-a\"") || strings.Contains(s.Here+s.There, `"key"`) {
+		t.Fatalf("a key showed: %+v", s)
 	}
 }
