@@ -1,0 +1,100 @@
+// Package cli is Muster's command surface. Every command is declared once in
+// the commands table: human help and `help --json` both generate from it, so
+// they cannot drift.
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+)
+
+// Version is the Muster release this binary was built as.
+const Version = "0.1.0-dev"
+
+// IO is the process environment a command runs against. Tests swap every
+// field; nothing in a command reads os.Stdin, os.Stdout or os.Getenv directly.
+type IO struct {
+	In      *os.File
+	Out     io.Writer
+	Err     io.Writer
+	Getenv  func(string) string
+	Environ func() []string
+}
+
+// StdIO is the real process environment.
+func StdIO() IO {
+	return IO{In: os.Stdin, Out: os.Stdout, Err: os.Stderr, Getenv: os.Getenv, Environ: os.Environ}
+}
+
+type command struct {
+	name    string
+	usage   string
+	summary string
+	run     func(sys IO, args []string) int
+}
+
+var commands []command
+
+func init() {
+	commands = []command{
+		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
+		{"version", "muster version", "Print the Muster version", runVersion},
+	}
+}
+
+// Main runs one muster invocation and returns its exit code.
+func Main(args []string, sys IO) int {
+	if len(args) == 0 {
+		return runHelp(sys, nil)
+	}
+	for _, c := range commands {
+		if c.name == args[0] {
+			return c.run(sys, args[1:])
+		}
+	}
+	fmt.Fprintf(sys.Err, "muster: unknown command %q (see `muster help`)\n", args[0])
+	return 2
+}
+
+func runHelp(sys IO, args []string) int {
+	if len(args) == 1 && args[0] == "--json" {
+		type entry struct {
+			Name    string `json:"name"`
+			Usage   string `json:"usage"`
+			Summary string `json:"summary"`
+		}
+		out := struct {
+			Version  int     `json:"version"`
+			Commands []entry `json:"commands"`
+		}{Version: 1}
+		for _, c := range commands {
+			out.Commands = append(out.Commands, entry{c.name, c.usage, c.summary})
+		}
+		return writeJSON(sys, out)
+	}
+	var b strings.Builder
+	b.WriteString("muster — launch coding agents per credential, see every quota at a glance\n\nCommands:\n")
+	for _, c := range commands {
+		fmt.Fprintf(&b, "  %-44s %s\n", c.usage, c.summary)
+	}
+	fmt.Fprint(sys.Out, b.String())
+	return 0
+}
+
+func runVersion(sys IO, _ []string) int {
+	fmt.Fprintln(sys.Out, Version)
+	return 0
+}
+
+func writeJSON(sys IO, v any) int {
+	enc := json.NewEncoder(sys.Out)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		fmt.Fprintf(sys.Err, "muster: %v\n", err)
+		return 1
+	}
+	return 0
+}

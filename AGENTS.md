@@ -4,14 +4,13 @@ Agent entrypoint for working on this repo. Read this first; it stays short — l
 
 ## Project model
 
-AgentSwap is a multi-platform config switcher and launcher for coding agents. Four mechanisms carry the whole tool (full design: [docs/architecture.md](docs/architecture.md)):
+Muster launches coding agents per credential and shows every subscription's quota at a glance. It is a Go rewrite of AgentSwap (the Node tool, preserved at tag `v0.4.0` and on `main`), developed on the `muster` branch. The plan is [docs/rebrand/vision.md](docs/rebrand/vision.md), the vocabulary is [docs/rebrand/CONTEXT.md](docs/rebrand/CONTEXT.md) — use its terms (credential, subscription account, default credential, shared settings, …) in code and docs. Design: [docs/architecture.md](docs/architecture.md); decisions: [docs/adr/](docs/adr/).
 
-1. **Profile = whole-file snapshot** — a profile is a complete agent `settings.json`; switching is a verbatim whole-file overwrite. AgentSwap never parses settings semantics.
-2. **Three-way reconcile** — live / profile / baseline hashes decide `in-sync` / `live-unsaved` / `profile-edited` / `conflict`; every entry point funnels through `src/reconcile.mjs`.
-3. **Transactional mutation** — one cross-process lock file (`pid:token`, `link(2)` atomic create, stale-owner stealing, `ELOCKFORMAT` fail-closed) held across read → reconcile → decide → write; a journal recovers a crash mid-commit; tmp+rename 0600 writes; split backup pools.
-4. **Launch env ownership** — inherited auth/routing env is stripped before the profile's `env` is injected; `run` mode isolates via a private 0600 temp settings file.
+Three mechanisms carry the tool:
 
-Multi-machine sync over SSH landed in 0.4.0 ([docs/sync.md](docs/sync.md)); it is built under the same four mechanisms, not a fifth runtime. What remains frozen from v1 is listed in [docs/v1.md](docs/v1.md): Windows real-machine verification, field merging, settings semantics, background daemon. Do not reopen those without explicit direction.
+1. **A credential owns the provider's env** — exactly the agent's auth/routing env namespace (base URL, key, model mapping). Everything else in the agent's settings is shared settings, which Muster syncs but never mixes with credentials.
+2. **Launch env ownership** — a launch strips inherited auth/routing env and injects the credential through a private temp `--settings` file that also blanks every default-credential key the credential doesn't set, so the default can't leak into another credential's instance.
+3. **Transactional mutation** — one OS file lock (`flock` / `LockFileEx`, released by the kernel if the holder dies) around every read → decide → write; writes are tmp + rename, 0600.
 
 ## Design principles
 
@@ -25,17 +24,18 @@ Multi-machine sync over SSH landed in 0.4.0 ([docs/sync.md](docs/sync.md)); it i
 The binding rules live in [CONTRIBUTING.md](CONTRIBUTING.md) — read it. The ones most often violated:
 
 - **No product mentions** anywhere — code, docs, commits, issues.
-- **Zero runtime dependencies** — Node.js stdlib only.
-- **Atomic commits** — one logical change per commit, imperative subject; commit only named files (`git add <paths>`, never `-A`).
-- **Every mutating command goes through `withLock`**; `--json` contracts are versioned (`{ "version": 2, ... }`).
-- Docs update with code — the routing table in [docs/index.md](docs/index.md) maps changed paths to owning docs, and `npm run check` enforces it.
+- **Every direct dependency is justified** in CONTRIBUTING.md's dependency table; `go test ./...` enforces it.
+- **Atomic commits** — one logical change per commit, conventional subject; commit only named files (`git add <paths>`, never `-A`).
+- **Every mutating command goes through `Store.WithLock`**; `--json` contracts are versioned (`{ "version": 1, ... }`).
+- **Never push or tag** until the user declares the Muster rewrite done.
+- Docs update with code — the routing table in [docs/index.md](docs/index.md) maps changed paths to owning docs, and `go test ./...` enforces it.
 
 ## Workflow
 
 ```bash
-node --test        # full suite, must be green before committing
-npm run check      # repo guardrails: zero deps, skill contract, doc routing, redlines
+go test ./...      # unit, e2e and repo guardrails — must be green before committing
+go vet ./...
 ```
 
-- Platform differences live only in `src/paths.mjs` and `src/launch.mjs`.
-- The bundled agent skill lives in `skills/agentswap/`; its frontmatter follows the open SKILL.md spec (name matches the directory, description ≤ 1024 chars).
+- Platform differences live only in `internal/platform`.
+- Tests never touch a real config: they point `MUSTER_HOME` and `CLAUDE_CONFIG_DIR` at temp dirs.
