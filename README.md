@@ -35,6 +35,11 @@ muster run codex-pool -- --resume      # args after -- go to Claude Code
 muster run codex-pool --dry-run        # what would be set, blanked and stripped — key names only
 ```
 
+```bash
+muster default              # which credential plain `claude` and IDE plugins use
+muster default codex-pool   # make it codex-pool (rewrites only the provider part of settings.json, backs it up first)
+```
+
 A launch overrides only the provider part of Claude Code's settings — base URL, key, model mapping — and leaves your hooks, permissions and plugins alone. Whatever your `~/.claude/settings.json` sets for its own provider (the *default credential*, used when you run `claude` directly or from an IDE) is blanked for the launch, so nothing of it leaks into an instance that uses another credential. Split your terminal however you like and run one `muster run` per pane.
 
 Every command that reports something takes `--json` and prints `{ "version": 1, ... }`; `muster help --json` describes them all.

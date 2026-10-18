@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/YukiagoTpf/muster/internal/platform"
@@ -57,6 +58,30 @@ func (s *Store) WithLock(fn func() error) error {
 	}
 	defer platform.Unlock(f)
 	return fn()
+}
+
+// Backup saves bytes about to be overwritten as backups/<kind>-<time>-<pid>.json
+// (0600) and prunes that kind's pool to the newest keep files. It returns the
+// backup's path.
+func (s *Store) Backup(kind string, data []byte, keep int) (string, error) {
+	dir := s.Path("backups")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, fmt.Sprintf("%s-%s-%d.json", kind, time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid()))
+	if err := WriteAtomic(path, data, 0o600); err != nil {
+		return "", err
+	}
+	pool, err := filepath.Glob(filepath.Join(dir, kind+"-*.json"))
+	if err != nil {
+		return path, err
+	}
+	sort.Strings(pool) // the timestamp sorts oldest first
+	for len(pool) > keep {
+		os.Remove(pool[0])
+		pool = pool[1:]
+	}
+	return path, nil
 }
 
 // ReadJSON decodes the file at path into v. A missing file reports

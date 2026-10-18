@@ -51,6 +51,12 @@ The private settings file is `<MUSTER_HOME>/run/<pid>-<nonce>.json`, 0600, remov
 
 Each launch records the credential, and the model per credential, in `state.json`; the picker offers them first.
 
+## Default credential
+
+The default credential is whatever provider env `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`) sets: it is what plain `claude` and IDE plugins use, since they don't go through Muster. `muster default` reports which registered credential that is — `match`, `drift` (a credential's base URL and key, but other provider keys differ), `unregistered` or `none` — and `muster default <credential>` makes one the default.
+
+Setting it is the one place Muster writes the agent's settings file, so it edits as little as it can: the provider keys in `env` are replaced by the credential's provider env, written where the first of them stood; every other key, top level or in `env`, keeps its value and its place (values are carried verbatim and the file is re-indented with two spaces). A file it cannot read as a JSON object is refused and left untouched. The previous file is backed up first (`<MUSTER_HOME>/backups/settings-<time>-<pid>.json`, newest 20 kept), the write is atomic, keeps the file's mode, and goes through a symlink to the file it points at. All of it happens under the store lock; the agent itself does not take that lock, so an edit it makes in the same instant can still lose — the backup is the way back.
+
 ## Picker
 
 A bare `muster` in a terminal is the quickest launch: a list of credentials (provider, gateway host, mapped models), then that credential's model aliases plus the agent's own default; Enter launches, so a repeat of the last launch is two keypresses. Arrows or j/k move, a digit picks a row directly, Esc goes back, q quits. A credential that maps no alias skips the model screen. Without a terminal on both ends a bare `muster` prints help instead.

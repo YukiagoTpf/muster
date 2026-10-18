@@ -133,3 +133,25 @@ func TestJSONRoundTrip(t *testing.T) {
 		t.Fatal("corrupt JSON was accepted")
 	}
 }
+
+func TestBackupPrunesToKeep(t *testing.T) {
+	s := open(t)
+	var last string
+	for i := 0; i < 4; i++ {
+		p, err := s.Backup("settings", []byte{byte('a' + i)}, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		last = p
+	}
+	pool, _ := filepath.Glob(filepath.Join(s.Dir, "backups", "settings-*.json"))
+	if len(pool) != 2 {
+		t.Fatalf("pool = %v", pool)
+	}
+	if got, _ := os.ReadFile(last); string(got) != "d" {
+		t.Fatalf("newest backup = %q", got)
+	}
+	if got, _ := os.ReadFile(pool[0]); string(got) != "c" {
+		t.Fatalf("oldest kept = %q (the oldest must go first)", got)
+	}
+}

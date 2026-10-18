@@ -41,6 +41,7 @@ var commands []command
 func init() {
 	commands = []command{
 		{"run", "muster run <credential> [-m <model>] [--dry-run [--json]] [-- <agent args>...]", "Launch Claude Code with a credential in this terminal", runRun},
+		{"default", "muster default [<credential>] [--json]", "Show, or set, the credential plain `claude` and IDE plugins use (the provider part of settings.json)", runDefault},
 		{"cred list", "muster cred list [--json]", "List credentials (never shows keys)", runCredList},
 		{"cred add", "muster cred add <name> --provider <p> (--from-settings | --base-url <url>) [--model alias=model]... [--env K=V]... [--key-stdin] [--json]", "Register a credential; the key comes from stdin or settings.json, never argv", runCredAdd},
 		{"cred rm", "muster cred rm <name> [--json]", "Remove a credential and its key", runCredRm},
