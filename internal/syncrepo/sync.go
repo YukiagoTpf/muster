@@ -347,6 +347,13 @@ func (r *Repo) Sync(prefer string) (Result, error) {
 				r.git.run("reset", "-q", "--hard", before)
 				return err
 			}
+			// The setup list has nothing to apply — it is read from the
+			// clone — but a change to it is news.
+			if same, err := r.git.test("diff", "--quiet", before, "HEAD", "--", r.setupPath()); err != nil {
+				return err
+			} else if !same {
+				p.items = append(p.items, Item{"setup", r.m.Platform})
+			}
 			same, err := r.apply(s, tracked, p)
 			if err != nil {
 				return err

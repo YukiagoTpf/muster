@@ -89,6 +89,11 @@ func (r *Repo) join(passphrase Passphrase, res *Result) error {
 	if err != nil {
 		return err
 	}
+	if _, ok, err := r.read(r.setupPath()); err != nil {
+		return err
+	} else if ok {
+		p.items = append(p.items, Item{"setup", r.m.Platform})
+	}
 	err = r.m.Store.WithLock(func() error {
 		now, err := r.m.read(tracked)
 		if err != nil {

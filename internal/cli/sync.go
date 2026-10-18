@@ -115,7 +115,7 @@ type syncView struct {
 }
 
 // reportSync prints what a sync or a join did; a conflict exits 1.
-func reportSync(sys IO, dir string, res syncrepo.Result, asJSON bool) int {
+func reportSync(sys IO, r *syncrepo.Repo, m syncrepo.Machine, res syncrepo.Result, asJSON bool) int {
 	code := 0
 	if len(res.Conflicts) > 0 {
 		code = 1
@@ -136,9 +136,14 @@ func reportSync(sys IO, dir string, res syncrepo.Result, asJSON bool) int {
 		fmt.Fprintf(sys.Out, "conflict: %s changed here and on another machine since the last sync; nothing was applied here.\n", itemList(res.Conflicts))
 		fmt.Fprintf(sys.Out, "  muster sync --prefer local    keep this machine's side of each conflict\n")
 		fmt.Fprintf(sys.Out, "  muster sync --prefer remote   take the other machines' side\n")
-		fmt.Fprintf(sys.Out, "  git -C %q diff HEAD origin/main   shows how the two differ\n", dir)
-	} else if len(res.Sent)+len(res.Received) == 0 {
+		fmt.Fprintf(sys.Out, "  git -C %q diff HEAD origin/main   shows how the two differ\n", r.Dir())
+		return code
+	}
+	if len(res.Sent)+len(res.Received) == 0 {
 		fmt.Fprintln(sys.Out, "already in sync")
+	}
+	if hint := setupHint(r, m); hint != "" {
+		fmt.Fprintln(sys.Out, hint)
 	}
 	return code
 }
@@ -163,7 +168,7 @@ func runSyncInit(sys IO, args []string) int {
 	if !asJSON {
 		fmt.Fprintf(sys.Out, "this machine now syncs with %s (%s)\n", pos[0], m.Platform)
 	}
-	return reportSync(sys, r.Dir(), res, asJSON)
+	return reportSync(sys, r, m, res, asJSON)
 }
 
 func runSync(sys IO, args []string) int {
@@ -178,7 +183,11 @@ func runSync(sys IO, args []string) int {
 	if prefer != "" && prefer != "local" && prefer != "remote" {
 		return usageError(sys, "sync", fmt.Sprintf("--prefer %q: want local or remote", prefer))
 	}
-	r, err := openRepo(sys)
+	m, err := syncMachine(sys)
+	if err != nil {
+		return fail(sys, err)
+	}
+	r, err := syncrepo.Open(m)
 	if err != nil {
 		return fail(sys, err)
 	}
@@ -186,7 +195,7 @@ func runSync(sys IO, args []string) int {
 	if err != nil {
 		return fail(sys, err)
 	}
-	return reportSync(sys, r.Dir(), res, asJSON)
+	return reportSync(sys, r, m, res, asJSON)
 }
 
 func runSyncStatus(sys IO, args []string) int {

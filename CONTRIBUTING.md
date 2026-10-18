@@ -38,4 +38,4 @@ Small, atomic commits: one logical change per commit, conventional subject (`fix
 
 ## Cross-platform changes
 
-Platform differences (data and config paths, the platform's name, process liveness, file locking, process spawning, console mode) are confined to `internal/platform` on purpose; everything else is platform-agnostic. `go test ./...` must pass on Linux, macOS and Windows. The tree is LF everywhere (`.gitattributes`), and a test whose premise only holds on some platforms (POSIX file modes, creating symlinks) skips elsewhere with the reason — it never fails there.
+Platform differences (data and config paths, the platform's name, process liveness, file locking, process spawning, the shell, console mode) are confined to `internal/platform` on purpose; everything else is platform-agnostic. `go test ./...` must pass on Linux, macOS and Windows. The tree is LF everywhere (`.gitattributes`), and a test whose premise only holds on some platforms (POSIX file modes, creating symlinks) skips elsewhere with the reason — it never fails there.

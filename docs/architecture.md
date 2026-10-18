@@ -16,6 +16,7 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | `internal/fakeagent` | A stand-in agent for tests (the test binary re-executes itself as one). |
 | `internal/platform` | Every OS difference. Nothing outside it branches on the operating system. |
 | `internal/syncrepo` | Multi-machine sync: the sync repo's layout and encryption, joining it, and the export → merge → apply → push cycle. |
+| `internal/setup` | The setup list, what this machine installed from it, and running its commands. |
 | `internal/store` | The data directory, its locks, backups, and atomic writes. |
 | `internal/repocheck` | Repo guardrails, as tests. |
 
@@ -99,10 +100,11 @@ muster.json                {"version": 1}: a Muster sync repo
 identity.age               the repo's age identity, encrypted with the user's passphrase
 credentials/<name>.age     each credential with its key, encrypted to the identity
 <platform>/settings.json   the platform's shared settings
+<platform>/setup.json      the platform's setup list
 <platform>/files/<path>    the platform's tracked files, by their path under the home directory
 ```
 
-`<platform>` is `windows`, `macos` or `linux`: machines on one platform share its settings and files; credentials are shared by all. The shared settings are `settings.json` minus the provider env, so the default credential never leaves the machine; a settings file whose remaining env has a secret-looking key (`…_TOKEN`, `…_API_KEY`) is refused rather than sent. Tracked files are files the user wrote and named (`muster track <path>`), under the home directory; `settings.json` and Muster's own data can't be tracked. Nothing else syncs — not what installers put down, not logins, not session history.
+`<platform>` is `windows`, `macos` or `linux`: machines on one platform share its settings, setup list and files; credentials are shared by all. The shared settings are `settings.json` minus the provider env, so the default credential never leaves the machine; a settings file whose remaining env has a secret-looking key (`…_TOKEN`, `…_API_KEY`) is refused rather than sent. Tracked files are files the user wrote and named (`muster track <path>`), under the home directory; `settings.json` and Muster's own data can't be tracked. Nothing else syncs — not what installers put down, not logins, not session history.
 
 **Secrets.** Credentials are age files, readable with the age tool alone. Each is encrypted to the repo's identity — a hybrid post-quantum age key made with the repo — and the identity is encrypted with the passphrase (scrypt). A machine asks for the passphrase once, when it joins, and keeps the identity in `<MUSTER_HOME>/sync.json` (0600), as it keeps keys in `secrets.json`. An unchanged credential keeps its ciphertext, so encryption's randomness never shows up as a change.
 
@@ -117,7 +119,13 @@ credentials/<name>.age     each credential with its key, encrypted to the identi
 
 A sync spends seconds on the network, so it holds a lock of its own (`sync.lock`) throughout, and the store lock only while it reads and writes the machine. The apply re-reads the machine under the store lock and starts over if anything changed since the export; the agent takes no lock, so an edit it makes in that same instant can still lose, and the backup is the way back.
 
-Syncing is manual. `muster sync status` works out offline what the next sync sends and whether a push is still owed. JSON: `sync` and `sync init` print `{ "version": 1, "sent": [...], "received": [...], "conflicts": [...] }` with items `{kind: settings|credential|file, name}`; `sync status` prints `{ "version": 1, "repo", "platform", "pending": [{kind, name, change: added|modified|removed}], "unpushed", "tracked": ["~/…"] }`; `track` and `untrack` print `{ "version": 1, "tracked": [...] }`.
+Syncing is manual. `muster sync status` works out offline what the next sync sends and whether a push is still owed. JSON: `sync` and `sync init` print `{ "version": 1, "sent": [...], "received": [...], "conflicts": [...] }` with items `{kind: settings|setup|credential|file, name}`; `sync status` prints `{ "version": 1, "repo", "platform", "pending": [{kind, name, change: added|modified|removed}], "unpushed", "tracked": ["~/…"] }`; `track` and `untrack` print `{ "version": 1, "tracked": [...] }`.
+
+### Setup list
+
+What a machine installs beyond Claude Code itself — a set of skills, a framework, a plugin marketplace — is the platform's setup list, `<platform>/setup.json` in the sync repo: entries of a name, an install command, and optionally an update and a check command. Muster runs the commands and never parses what they install; plugins need no entry, since `enabledPlugins` and `extraKnownMarketplaces` in the shared settings make Claude Code install them. The list is edited in the clone (`setup add`, `setup rm`, under the sync lock) and travels with the next sync, which reports a changed list and names the entries this machine hasn't installed.
+
+`muster setup install` installs what this machine lacks: an entry whose check exits 0 is present already, as is one without a check that this machine installed with the same install command (`<MUSTER_HOME>/setup-state.json` records each install; a changed command is a new install). `muster update` runs the update command of every entry installed here. A command line runs as the user wrote it, in the platform's shell — `sh -c` on Unix, `cmd.exe /d /s /c` on Windows — with the terminal's stdin and output (under `--json` the output goes to stderr, and stdout carries `{ "version": 1, "results": [{name, action: installed|present|updated|failed|skipped, exitCode, reason}] }`). A failed command fails the run (exit 1) but not the entries after it.
 
 ## Agent skill
 
@@ -125,4 +133,4 @@ Syncing is manual. `muster sync status` works out offline what the next sync sen
 
 ## Platform isolation
 
-All platform differences live in `internal/platform`: data, home and application-config directories, the platform's name (which part of the sync repo a machine uses), file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.
+All platform differences live in `internal/platform`: data, home and application-config directories, the platform's name (which part of the sync repo a machine uses), the shell a user's command line runs in, file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.

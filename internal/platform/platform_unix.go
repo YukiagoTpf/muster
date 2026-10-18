@@ -31,6 +31,10 @@ func processAlive(pid int) bool {
 // Command is the command that runs bin with args.
 func Command(bin string, args []string) *exec.Cmd { return exec.Command(bin, args...) }
 
+// Shell is the command that runs a command line the user wrote, in the
+// platform's shell: sh on Unix.
+func Shell(line string) *exec.Cmd { return exec.Command("sh", "-c", line) }
+
 // ExitCode is a finished child's exit code; a child killed by a signal
 // reports 128 + the signal number, as a shell does.
 func ExitCode(e *exec.ExitError) int {

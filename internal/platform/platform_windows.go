@@ -20,12 +20,21 @@ func Command(bin string, args []string) *exec.Cmd {
 	if ext := strings.ToLower(filepath.Ext(bin)); ext != ".cmd" && ext != ".bat" {
 		return exec.Command(bin, args...)
 	}
+	return cmdExe(cmdLine(bin, args))
+}
+
+// Shell is the command that runs a command line the user wrote, in the
+// platform's shell: cmd.exe on Windows. The line goes to cmd as written.
+func Shell(line string) *exec.Cmd { return cmdExe(`"` + line + `"`) }
+
+// cmdExe runs `cmd /d /s /c <arg>`; /s strips arg's outer quotes.
+func cmdExe(arg string) *exec.Cmd {
 	comspec := os.Getenv("ComSpec")
 	if comspec == "" {
 		comspec = filepath.Join(os.Getenv("SystemRoot"), "System32", "cmd.exe")
 	}
 	cmd := exec.Command(comspec)
-	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: quoteCmdArg(comspec) + " /d /s /c " + cmdLine(bin, args)}
+	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: quoteCmdArg(comspec) + " /d /s /c " + arg}
 	return cmd
 }
 

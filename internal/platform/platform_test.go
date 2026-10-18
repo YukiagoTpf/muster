@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -157,4 +158,15 @@ func TestStartDetachedRuns(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("the detached process never ran")
+}
+
+func TestShellRunsTheLineAsWritten(t *testing.T) {
+	out, err := Shell(`echo a&& echo "b c"`).Output()
+	if got := strings.ReplaceAll(string(out), "\r", ""); err != nil || (got != "a\nb c\n" && got != "a\n\"b c\"\n") {
+		t.Fatalf("output %q, err %v", out, err)
+	}
+	var exit *exec.ExitError
+	if err := Shell("exit 3").Run(); !errors.As(err, &exit) || ExitCode(exit) != 3 {
+		t.Fatalf("exit code not carried: %v", err)
+	}
 }

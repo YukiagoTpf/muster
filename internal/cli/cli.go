@@ -54,6 +54,11 @@ func init() {
 		{"sync", "muster sync [--prefer local|remote] [--json]", "Send this machine's changes and apply the other machines'; --prefer settles conflicts", runSync},
 		{"track", "muster track [<path>...] [--json]", "Sync files you wrote (scripts, hooks) with the shared settings; no path lists them", runTrack},
 		{"untrack", "muster untrack <path>... [--json]", "Stop syncing files (they stay on every machine)", runUntrack},
+		{"setup list", "muster setup list [--json]", "Show this platform's setup list and what this machine has installed", runSetupList},
+		{"setup add", "muster setup add <name> --install <cmd> [--update <cmd>] [--check <cmd>] [--json]", "Add an entry to this platform's setup list (it syncs; Muster only runs the commands)", runSetupAdd},
+		{"setup rm", "muster setup rm <name> [--json]", "Remove an entry from the setup list (what it installed stays)", runSetupRm},
+		{"setup install", "muster setup install [<name>...] [--force] [--json]", "Install the setup list's entries this machine doesn't have yet; a passing check counts as installed", runSetupInstall},
+		{"update", "muster update [<name>...] [--json]", "Run the update command of every setup list entry installed here", runUpdate},
 		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
 		{"version", "muster version", "Print the Muster version", runVersion},
 	}

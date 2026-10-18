@@ -38,6 +38,8 @@ Arguments after `--` go to Claude Code, e.g. `muster run codex-pool -m opus -- -
 muster sync status --json        # offline: what the next sync sends ("pending"), the tracked files
 muster sync --json               # send and receive: "sent", "received"; exit 1 with "conflicts" when both sides changed the same thing
 muster track <path> --json       # sync a file the user wrote (a hook or statusline script) with the shared settings
+muster setup list --json         # what this platform installs (skills, frameworks …) and what is installed here
+muster update --json             # run every installed entry's update command ("更新一下 skills")
 ```
 
 A conflict changes nothing on this machine. Show the user what conflicts and let them choose; run `muster sync --prefer local` or `--prefer remote` only with their answer.

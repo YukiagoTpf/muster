@@ -50,6 +50,11 @@ muster sync init git@github.com:you/muster-sync.git   # an empty repo starts fro
 muster track ~/.claude/statusline.sh                    # sync a file you wrote along with the shared settings
 muster sync                 # send this machine's changes, apply the others' (both changed the same thing? --prefer local|remote)
 muster sync status          # what the next sync sends — offline
+
+# what every machine of this platform installs: Muster runs the commands, it doesn't parse them
+muster setup add skills --install "npx skills add <source> -g -a claude-code -y" --update "npx skills update -g -y"
+muster setup install        # install what this machine doesn't have yet (a new machine: right after sync init)
+muster update               # run every update command
 ```
 
 A launch overrides only the provider part of Claude Code's settings — base URL, key, model mapping — and leaves your hooks, permissions and plugins alone. Whatever your `~/.claude/settings.json` sets for its own provider (the *default credential*, used when you run `claude` directly or from an IDE) is blanked for the launch, so nothing of it leaks into an instance that uses another credential. Split your terminal however you like and run one `muster run` per pane.
