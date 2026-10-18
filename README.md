@@ -6,6 +6,20 @@ Muster keeps your coding-agent credentials in one place, shows how much quota ev
 
 > **Status: in development.** Muster is a Go rewrite of AgentSwap. The released Node tool is still on npm as [`agentswap@0.4.0`](https://www.npmjs.com/package/agentswap) (source: tag `v0.4.0`). The plan is [docs/vision.md](docs/vision.md).
 
+## Install
+
+```bash
+# macOS, Linux — into ~/.local/bin
+curl -fsSL https://raw.githubusercontent.com/YukiagoTpf/muster/main/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell) — into %LOCALAPPDATA%\Programs\muster, added to your PATH
+irm https://raw.githubusercontent.com/YukiagoTpf/muster/main/install.ps1 | iex
+```
+
+Either script installs the latest release, checks it against the release's checksums, and upgrades in place when run again; `MUSTER_INSTALL_DIR` picks another directory. The binaries are also on the [releases page](https://github.com/YukiagoTpf/muster/releases). One binary, nothing else to install — the web page is inside it.
+
 ## Build from source
 
 Requires Go ≥ 1.25, and Node ≥ 24 for the web page.

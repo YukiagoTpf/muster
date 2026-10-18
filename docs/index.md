@@ -17,6 +17,7 @@ Routing table for documentation upkeep. When code changes, find the owning docs 
 | `web/**` | `docs/architecture.md`, `CONTRIBUTING.md` |
 | `docs/**` | `docs/index.md` |
 | `README.md`, `CONTRIBUTING.md`, `CONTEXT.md` | `docs/index.md` |
+| `install.sh`, `install.ps1` | `README.md`, `CONTRIBUTING.md` |
 | `.gitignore`, `.gitattributes`, `LICENSE` | — |
 | `.github/**` | — |
 

@@ -45,6 +45,10 @@ Tests live next to the code. End-to-end tests run the CLI against temp `MUSTER_H
 
 When code changes, check [docs/index.md](docs/index.md) for the owning docs — the routing table there is machine-checked by `go test ./internal/repocheck`. The redline check reads `.redlines.local.json` (gitignored) if present; the term list never enters the repo.
 
+## Releasing
+
+Push a `v*` tag on `main` (`v0.2.0`). `.github/workflows/release.yml` builds the web page, runs the tests, cross-compiles a static binary for macOS, Linux and Windows on amd64 and arm64 with the version stamped in (`muster version` prints it; a source build says `dev`), and publishes them with `checksums.txt` as a GitHub release. `install.sh` and `install.ps1` download from the latest release by asset name (`muster_<os>_<arch>[.exe]`), so renaming an asset breaks every install line in the README.
+
 ## Commit style
 
 Small, atomic commits: one logical change per commit, conventional subject (`fix: …`, `feat: …`, `docs: …`).

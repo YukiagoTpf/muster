@@ -11,8 +11,9 @@ import (
 	"strings"
 )
 
-// Version is the Muster release this binary was built as.
-const Version = "0.1.0-dev"
+// Version is the Muster release this binary was built as. A release build sets
+// it: -ldflags "-X github.com/YukiagoTpf/muster/internal/cli.Version=0.1.0".
+var Version = "dev"
 
 // IO is the process environment a command runs against. Tests swap every
 // field; nothing in a command reads os.Stdin, os.Stdout or os.Getenv directly.
