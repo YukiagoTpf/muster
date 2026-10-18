@@ -63,6 +63,10 @@ A bare `muster` in a terminal is the quickest launch: a list of credentials (pro
 
 `picker.Screen` is pure — keys in, cursor and lines out — and `picker.Terminal` does the I/O: raw mode, hidden cursor, the frame redrawn in place with every line cut to the terminal width (a wrapped line would break the redraw), and the frame erased on exit so only the launch line remains. On a Windows console, virtual-terminal processing is switched on for the picker's lifetime.
 
+## Agent skill
+
+`skills/muster/SKILL.md` teaches an agent the agent-facing surface: `cred list --json`, `default --json` and `run --dry-run --json` to look, and `muster run` in a sibling pane to start another instance beside itself (the skill holds the herdr commands; Muster itself never drives a multiplexer). It forbids the agent from handling keys. Its frontmatter follows the open SKILL.md spec, which `go test ./internal/repocheck` checks.
+
 ## Platform isolation
 
 All platform differences live in `internal/platform`: data and home directories, file locking, renames, process liveness, how a command is spawned and how its exit code reads. Everything else is platform-agnostic.
