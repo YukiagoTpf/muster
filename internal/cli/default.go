@@ -1,12 +1,7 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/YukiagoTpf/muster/internal/claude"
@@ -34,51 +29,6 @@ func runDefault(sys IO, args []string) int {
 	return showDefault(sys, path, asJSON)
 }
 
-// defaultState says which registered credential settings.json's provider env
-// is: "match" (exactly a credential), "drift" (a credential's base URL and key
-// but other keys differ), "unregistered" (a provider no credential has) or
-// "none" (no provider env: the agent uses its own login).
-type defaultState struct {
-	State         string   `json:"state"`
-	Credential    string   `json:"credential,omitempty"`
-	DifferentKeys []string `json:"differentKeys,omitempty"`
-	BaseURL       string   `json:"baseURL,omitempty"`
-}
-
-func classify(r *credential.Registry, env map[string]string) defaultState {
-	if len(env) == 0 {
-		return defaultState{State: "none"}
-	}
-	for _, c := range r.Credentials {
-		key, _ := r.Secret(c.Name)
-		if env[claude.BaseURLKey] != c.BaseURL || env[claude.TokenKey] != key {
-			continue
-		}
-		diff := differentKeys(c.ProviderEnv(key), env)
-		if len(diff) == 0 {
-			return defaultState{State: "match", Credential: c.Name}
-		}
-		return defaultState{State: "drift", Credential: c.Name, DifferentKeys: diff}
-	}
-	return defaultState{State: "unregistered", BaseURL: env[claude.BaseURLKey]}
-}
-
-func differentKeys(a, b map[string]string) []string {
-	var keys []string
-	for k, v := range a {
-		if w, ok := b[k]; !ok || w != v {
-			keys = append(keys, k)
-		}
-	}
-	for k := range b {
-		if _, ok := a[k]; !ok {
-			keys = append(keys, k)
-		}
-	}
-	sort.Strings(keys)
-	return keys
-}
-
 func showDefault(sys IO, path string, asJSON bool) int {
 	r, err := loadRegistry(sys)
 	if err != nil {
@@ -88,12 +38,12 @@ func showDefault(sys IO, path string, asJSON bool) int {
 	if err != nil {
 		return fail(sys, err)
 	}
-	st := classify(r, env)
+	st := r.ClassifyDefault(env)
 	if asJSON {
 		return writeJSON(sys, struct {
 			Version  int    `json:"version"`
 			Settings string `json:"settings"`
-			defaultState
+			credential.DefaultState
 		}{1, path, st})
 	}
 	switch st.State {
@@ -110,54 +60,13 @@ func showDefault(sys IO, path string, asJSON bool) int {
 	return 0
 }
 
-// setDefault makes a credential the default: settings.json's provider env
-// becomes exactly the credential's, everything else in the file is kept, and
-// the previous file is backed up first.
+// setDefault makes a credential the default (see credential.MakeDefault).
 func setDefault(sys IO, path, name string, asJSON bool) int {
 	s, err := store.Open(sys.Getenv)
 	if err != nil {
 		return fail(sys, err)
 	}
-	var backup string
-	err = s.WithLock(func() error {
-		r, err := credential.Load(s)
-		if err != nil {
-			return err
-		}
-		c, ok := r.Get(name)
-		if !ok {
-			return fmt.Errorf("no credential named %q (see `muster cred list`)", name)
-		}
-		key, ok := r.Secret(name)
-		if !ok {
-			return fmt.Errorf("credential %q has no key stored; remove it and add it again", name)
-		}
-		old, err := os.ReadFile(path)
-		perm := fs.FileMode(0o600)
-		switch {
-		case errors.Is(err, os.ErrNotExist):
-			old = nil
-		case err != nil:
-			return err
-		default:
-			if fi, err := os.Stat(path); err == nil {
-				perm = fi.Mode().Perm()
-			}
-		}
-		next, err := claude.SetProviderEnv(old, c.ProviderEnv(key))
-		if err != nil {
-			return fmt.Errorf("%s: %w — fix it by hand; nothing was changed", path, err)
-		}
-		if old != nil {
-			if backup, err = s.Backup("settings.json", old, store.BackupsKept); err != nil {
-				return err
-			}
-		}
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return err
-		}
-		return store.WriteAtomic(path, next, perm)
-	})
+	backup, err := credential.MakeDefault(s, path, name)
 	if err != nil {
 		return fail(sys, err)
 	}

@@ -126,7 +126,7 @@ func runRefreshStatusline(sys IO, args []string) int {
 		return 1
 	}
 	now := time.Now()
-	report := quota.Collect(context.Background(), httpClient,
+	report := quota.Collect(context.Background(), quota.HTTPClient,
 		[]quota.Source{quota.AsterGate(c.Name, c.BaseURL, key, session, quota.Timezone(sys.Getenv, now))})[0]
 	err = s.WithLock(func() error {
 		return savePinned(s, session, quota.Repin(loadPinned(s, session), report, now))

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/YukiagoTpf/muster/internal/platform"
+	"github.com/YukiagoTpf/muster/internal/setup"
 )
 
 func TestSetupListInstallUpdate(t *testing.T) {
@@ -36,7 +37,7 @@ func TestSetupListInstallUpdate(t *testing.T) {
 	code, out, errOut := a.run(t, "", "setup", "install", "--json")
 	var res struct {
 		Version int
-		Results []setupResult
+		Results []setup.Result
 	}
 	if err := json.Unmarshal([]byte(out), &res); err != nil {
 		t.Fatalf("install --json printed %q: %v", out, err)

@@ -7,9 +7,9 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | Package | Owns |
 | --- | --- |
 | `cmd/muster` | The entry point; nothing but `cli.Main`. |
-| `internal/cli` | The command table, argument parsing, human and `--json` output. Help and `help --json` generate from the table. |
+| `internal/cli` | The command table, argument parsing, human and `--json` output. Help and `help --json` generate from the table. Logic lives in the packages below, so every surface runs the same code. |
 | `internal/claude` | Everything Muster knows about Claude Code: its settings path, which env keys belong to the provider, the model-alias env keys. Another agent would get its own package. |
-| `internal/credential` | The credential registry. |
+| `internal/credential` | The credential registry, how a credential is shown, and the default credential (which one `settings.json` holds, and making one the default). |
 | `internal/launch` | Turning a credential into a running instance, and the last-launch state. |
 | `internal/quota` | Reading quota from every source, merging it into one account list, caching it, and the shared bar/percentage rendering. |
 | `internal/picker` | The interactive chooser behind a bare `muster`. |
@@ -73,7 +73,7 @@ Quota belongs to a **subscription account** (5-hour, weekly, monthly … windows
 
 Every source is isolated: one that fails — network, HTTP status, expired login — reports its error in its own place and the others are unaffected. `quota.Merge` folds the reports into one list in which an account reachable through several gateway keys appears once (the freshest observation wins; `via` lists every key). A window whose reset time has passed since it was observed shows as reset rather than with a stale percentage.
 
-Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. When the picker finds the cache older than a minute (or missing) it starts a detached `muster __refresh-quota` — plumbing, not listed in help — and goes on with what it has; the next view is fresh. A detached process runs in its own session on Unix and with no console in its own process group on Windows, so it outlives the picker and a Ctrl-C in the terminal can't reach it. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ] }`.
+Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. When the picker finds the cache older than a minute (or missing) it starts a detached `muster __refresh-quota` — plumbing, not listed in help — and goes on with what it has; the next view is fresh. A detached process runs in its own session on Unix and with no console in its own process group on Windows, so it outlives the picker and a Ctrl-C in the terminal can't reach it. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ], "fetchedAt" }` (`fetchedAt`: when the oldest of the numbers was fetched).
 
 Human output is colored only on a terminal and when `NO_COLOR` is unset; anywhere else the escapes are stripped.
 

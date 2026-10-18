@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/YukiagoTpf/muster/internal/quota"
 )
 
 // fakeGateway answers /me/usage like a gateway whose pool has one account.
@@ -38,7 +40,7 @@ func TestQuotaReadsEveryGatewayCredentialOnce(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d: %s", code, errOut)
 	}
-	var o overview
+	var o quota.Overview
 	if err := json.Unmarshal([]byte(out), &o); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +75,7 @@ func TestQuotaReportsAFailingSourceAndGoesOn(t *testing.T) {
 	sb.run(t, "sk-wrong", "cred", "add", "broken", "--provider", "astergate", "--base-url", srv.URL, "--key-stdin")
 	sb.run(t, "sk-right", "cred", "add", "fine", "--provider", "astergate", "--base-url", srv.URL, "--key-stdin")
 	code, out, _ := sb.run(t, "", "quota", "--json")
-	var o overview
+	var o quota.Overview
 	json.Unmarshal([]byte(out), &o)
 	if code != 0 || len(o.Errors) != 1 || o.Errors[0].Source != "astergate:broken" || len(o.Accounts) != 1 {
 		t.Fatalf("exit %d, overview %+v", code, o)
@@ -104,7 +106,7 @@ func TestQuotaReadsTheCodexLoginOnlyWhereItExists(t *testing.T) {
 	os.MkdirAll(filepath.Dir(auth), 0o700)
 	os.WriteFile(auth, []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"t","account_id":"acct-c"}}`), 0o600)
 	_, out, _ = sb.run(t, "", "quota", "--json")
-	var o overview
+	var o quota.Overview
 	json.Unmarshal([]byte(out), &o)
 	if len(o.Accounts) != 1 || o.Accounts[0].Platform != "codex" || o.Accounts[0].Plan != "plus" || o.Accounts[0].Windows[0].Kind != "5h" {
 		t.Fatalf("overview = %+v", o)

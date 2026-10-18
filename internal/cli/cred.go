@@ -12,30 +12,6 @@ import (
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
-// credView is a credential as `cred list --json` and `cred add --json` show
-// it. It never carries the key — only whether one is stored.
-type credView struct {
-	Name     string              `json:"name"`
-	Provider string              `json:"provider"`
-	BaseURL  string              `json:"baseURL"`
-	Env      map[string]string   `json:"env"`
-	Models   []claude.ModelAlias `json:"models"`
-	HasKey   bool                `json:"hasKey"`
-}
-
-func viewOf(r *credential.Registry, c credential.Credential) credView {
-	_, hasKey := r.Secret(c.Name)
-	env := c.Env
-	if env == nil {
-		env = map[string]string{}
-	}
-	models := c.Models()
-	if models == nil {
-		models = []claude.ModelAlias{}
-	}
-	return credView{c.Name, c.Provider, c.BaseURL, env, models, hasKey}
-}
-
 func aliases(c credential.Credential) string {
 	var names []string
 	for _, m := range c.Models() {
@@ -57,14 +33,10 @@ func runCredList(sys IO, args []string) int {
 		return fail(sys, err)
 	}
 	if asJSON {
-		views := []credView{}
-		for _, c := range r.Credentials {
-			views = append(views, viewOf(r, c))
-		}
 		return writeJSON(sys, struct {
-			Version     int        `json:"version"`
-			Credentials []credView `json:"credentials"`
-		}{1, views})
+			Version     int               `json:"version"`
+			Credentials []credential.View `json:"credentials"`
+		}{1, r.Views()})
 	}
 	if len(r.Credentials) == 0 {
 		fmt.Fprintln(sys.Out, "no credentials yet — add one with `muster cred add`")
@@ -112,19 +84,11 @@ func runCredAdd(sys IO, args []string) int {
 		if err != nil {
 			return fail(sys, err)
 		}
-		env, err := claude.ReadProviderEnv(path)
+		imported, k, err := credential.FromSettings(path)
 		if err != nil {
 			return fail(sys, err)
 		}
-		if c.BaseURL = env[claude.BaseURLKey]; c.BaseURL == "" {
-			return fail(sys, fmt.Errorf("%s sets no %s to import", path, claude.BaseURLKey))
-		}
-		key = env[claude.TokenKey]
-		for k, v := range env {
-			if k != claude.BaseURLKey && k != claude.TokenKey && !claude.IsSecretEnvKey(k) {
-				c.Env[k] = v
-			}
-		}
+		c.BaseURL, c.Env, key = imported.BaseURL, imported.Env, k
 		if key == "" && !keyStdin {
 			return fail(sys, fmt.Errorf("%s sets no %s; pass the key with --key-stdin", path, claude.TokenKey))
 		}
@@ -142,11 +106,9 @@ func runCredAdd(sys IO, args []string) int {
 		c.Env[kv.key] = kv.value
 	}
 	if keyStdin {
-		b, err := io.ReadAll(sys.In)
-		if err != nil {
-			return fail(sys, err)
+		if key, ok = readKey(sys); !ok {
+			return 1
 		}
-		key = strings.TrimSpace(string(b))
 	}
 	if key == "" {
 		return usageError(sys, "cred add", "no key: pass it on stdin with --key-stdin, or import it with --from-settings")
@@ -156,28 +118,38 @@ func runCredAdd(sys IO, args []string) int {
 	if err != nil {
 		return fail(sys, err)
 	}
-	var view credView
-	err = s.WithLock(func() error {
-		r, err := credential.Load(s)
-		if err != nil {
-			return err
-		}
+	var view credential.View
+	err = credential.Update(s, func(r *credential.Registry) error {
 		if err := r.Add(c, key); err != nil {
 			return err
 		}
-		view = viewOf(r, c)
-		return r.Save(s)
+		view = r.ViewOf(c)
+		return nil
 	})
 	if err != nil {
 		return fail(sys, err)
 	}
+	return reportCred(sys, "added", c, view, asJSON)
+}
+
+// readKey reads a key from stdin.
+func readKey(sys IO) (string, bool) {
+	b, err := io.ReadAll(sys.In)
+	if err != nil {
+		fail(sys, err)
+		return "", false
+	}
+	return strings.TrimSpace(string(b)), true
+}
+
+func reportCred(sys IO, verb string, c credential.Credential, view credential.View, asJSON bool) int {
 	if asJSON {
 		return writeJSON(sys, struct {
-			Version    int      `json:"version"`
-			Credential credView `json:"credential"`
+			Version    int             `json:"version"`
+			Credential credential.View `json:"credential"`
 		}{1, view})
 	}
-	fmt.Fprintf(sys.Out, "added %s (%s · %s · models: %s)\n", c.Name, c.Provider, c.BaseURL, aliases(c))
+	fmt.Fprintf(sys.Out, "%s %s (%s · %s · models: %s)\n", verb, c.Name, c.Provider, c.BaseURL, aliases(c))
 	return 0
 }
 
@@ -191,16 +163,7 @@ func runCredRm(sys IO, args []string) int {
 	if err != nil {
 		return fail(sys, err)
 	}
-	err = s.WithLock(func() error {
-		r, err := credential.Load(s)
-		if err != nil {
-			return err
-		}
-		if err := r.Remove(pos[0]); err != nil {
-			return err
-		}
-		return r.Save(s)
-	})
+	err = credential.Update(s, func(r *credential.Registry) error { return r.Remove(pos[0]) })
 	if errors.Is(err, credential.ErrNotFound) {
 		return fail(sys, fmt.Errorf("no credential named %q (see `muster cred list`)", pos[0]))
 	}

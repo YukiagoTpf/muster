@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/YukiagoTpf/muster/internal/claude"
+	"github.com/YukiagoTpf/muster/internal/credential"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
@@ -92,8 +93,8 @@ func TestCredAddFromSettingsListRemove(t *testing.T) {
 		t.Fatalf("list: exit %d", code)
 	}
 	var list struct {
-		Version     int        `json:"version"`
-		Credentials []credView `json:"credentials"`
+		Version     int               `json:"version"`
+		Credentials []credential.View `json:"credentials"`
 	}
 	if err := json.Unmarshal([]byte(out), &list); err != nil {
 		t.Fatal(err)

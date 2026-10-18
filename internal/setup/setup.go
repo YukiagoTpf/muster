@@ -145,3 +145,168 @@ func Run(line string, env []string, stdin io.Reader, stdout, stderr io.Writer) (
 	}
 	return 0, nil
 }
+
+// Runner runs setup list commands on this machine and records what got
+// installed as it happens. Commands get the runner's stdin, and their output
+// — after a "==> <name>: <command>" line — goes to Output.
+type Runner struct {
+	Store  *store.Store
+	Env    []string
+	Stdin  io.Reader
+	Output io.Writer
+	state  State
+}
+
+// Result is what an install or an update did with one entry.
+type Result struct {
+	Name     string `json:"name"`
+	Action   string `json:"action"` // installed, present, updated, failed or skipped
+	ExitCode int    `json:"exitCode,omitempty"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+// Text says the result in a few words.
+func (r Result) Text() string {
+	switch r.Action {
+	case "present":
+		return "installed already"
+	case "failed":
+		return fmt.Sprintf("%s (exit %d)", r.Reason, r.ExitCode)
+	case "skipped":
+		return r.Reason
+	}
+	return r.Action
+}
+
+// NewRunner reads what this machine has installed.
+func NewRunner(s *store.Store, env []string, stdin io.Reader, output io.Writer) (*Runner, error) {
+	st, err := LoadState(s)
+	return &Runner{Store: s, Env: env, Stdin: stdin, Output: output, state: st}, err
+}
+
+func (r *Runner) run(line string, quiet bool) (int, error) {
+	if quiet {
+		return Run(line, r.Env, nil, io.Discard, io.Discard)
+	}
+	return Run(line, r.Env, r.Stdin, r.Output, r.Output)
+}
+
+func (r *Runner) record(e Entry) error {
+	r.state.Installed[e.Name] = Installed{Install: e.Install, At: time.Now().UTC()}
+	return r.Store.WithLock(func() error {
+		st, err := LoadState(r.Store)
+		if err != nil {
+			return err
+		}
+		st.Installed[e.Name] = r.state.Installed[e.Name]
+		return st.Save(r.Store)
+	})
+}
+
+// installed reports whether the entry is on this machine: its check passes
+// (which gets it recorded), or, without a check, it is recorded.
+func (r *Runner) installed(e Entry) (bool, error) {
+	if e.Check == "" {
+		return r.state.Recorded(e), nil
+	}
+	code, err := r.run(e.Check, true)
+	if err != nil || code != 0 {
+		return false, err
+	}
+	if !r.state.Recorded(e) {
+		return true, r.record(e)
+	}
+	return true, nil
+}
+
+// step runs one command of an entry and says how it went.
+func (r *Runner) step(e Entry, line, done, failed string) (Result, error) {
+	fmt.Fprintf(r.Output, "==> %s: %s\n", e.Name, line)
+	code, err := r.run(line, false)
+	if err != nil {
+		return Result{}, err
+	}
+	if code != 0 {
+		return Result{Name: e.Name, Action: "failed", ExitCode: code, Reason: failed}, nil
+	}
+	return Result{Name: e.Name, Action: done}, nil
+}
+
+// Install installs the entries this machine doesn't have (all of them with
+// force). A failed command doesn't stop the entries after it.
+func (r *Runner) Install(entries []Entry, force bool, report func(Result)) error {
+	for _, e := range entries {
+		if !force {
+			present, err := r.installed(e)
+			if err != nil {
+				return err
+			}
+			if present {
+				report(Result{Name: e.Name, Action: "present"})
+				continue
+			}
+		}
+		res, err := r.step(e, e.Install, "installed", "install failed")
+		if err != nil {
+			return err
+		}
+		if res.Action == "installed" {
+			if err := r.record(e); err != nil {
+				return err
+			}
+		}
+		report(res)
+	}
+	return nil
+}
+
+// Update runs the update command of every entry installed here.
+func (r *Runner) Update(entries []Entry, report func(Result)) error {
+	for _, e := range entries {
+		if e.Update == "" {
+			report(Result{Name: e.Name, Action: "skipped", Reason: "no update command"})
+			continue
+		}
+		present, err := r.installed(e)
+		if err != nil {
+			return err
+		}
+		if !present {
+			report(Result{Name: e.Name, Action: "skipped", Reason: "not installed here — `muster setup install " + e.Name + "`"})
+			continue
+		}
+		res, err := r.step(e, e.Update, "updated", "update failed")
+		if err != nil {
+			return err
+		}
+		report(res)
+	}
+	return nil
+}
+
+// Missing names the entries this machine has no record of installing.
+func (st State) Missing(l List) []string {
+	var out []string
+	for _, e := range l.Entries {
+		if !st.Recorded(e) {
+			out = append(out, e.Name)
+		}
+	}
+	return out
+}
+
+// Select picks entries by name, all of them when none is named.
+func (l List) Select(names []string) ([]Entry, error) {
+	if len(names) == 0 {
+		return l.Entries, nil
+	}
+	var out []Entry
+	for _, n := range names {
+		e, ok := l.Get(n)
+		if !ok {
+			return nil, fmt.Errorf("the setup list has no %q (see `muster setup list`)", n)
+		}
+		out = append(out, e)
+	}
+	return out, nil
+}

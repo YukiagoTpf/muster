@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"sort"
@@ -15,61 +13,6 @@ import (
 	"github.com/YukiagoTpf/muster/internal/quota"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
-
-// httpClient is the client every quota source uses. Proxies come from the
-// environment (HTTPS_PROXY and friends).
-var httpClient = &http.Client{Timeout: 15 * time.Second}
-
-// quotaSources lists every source this machine can read: each gateway
-// credential, then each local login of another client.
-func quotaSources(sys IO, r *credential.Registry) []quota.Source {
-	var sources []quota.Source
-	tz := quota.Timezone(sys.Getenv, time.Now())
-	for _, c := range r.Credentials {
-		key, ok := r.Secret(c.Name)
-		if ok && c.Provider == "astergate" {
-			sources = append(sources, quota.AsterGate(c.Name, c.BaseURL, key, "", tz))
-		}
-	}
-	home, err := platform.UserHome(sys.Getenv)
-	if err != nil {
-		return sources
-	}
-	// A local login is a source only where that client is logged in.
-	if path := quota.CodexAuthPath(sys.Getenv, home); exists(path) {
-		sources = append(sources, quota.Codex(path, apiBase(sys, "MUSTER_CODEX_API", "https://chatgpt.com/backend-api")))
-	}
-	if dir, err := platform.AppConfigDir(sys.Getenv); err == nil {
-		if path := quota.CursorStatePath(dir); exists(path) {
-			sources = append(sources, quota.Cursor(path, apiBase(sys, "MUSTER_CURSOR_API", "https://api2.cursor.sh")))
-		}
-	}
-	if path := quota.GrokAuthPath(home); exists(path) {
-		sources = append(sources, quota.Grok(path, apiBase(sys, "MUSTER_GROK_API", "https://cli-chat-proxy.grok.com")))
-	}
-	return sources
-}
-
-// apiBase is a local-login source's API base: the real one, or the env
-// override tests point at a fake server.
-func apiBase(sys IO, override, real string) string {
-	if u := sys.Getenv(override); u != "" {
-		return u
-	}
-	return real
-}
-
-func exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
-}
-
-// refreshQuota reads every source and caches the result.
-func refreshQuota(sys IO, s *store.Store, r *credential.Registry) ([]quota.Report, error) {
-	reports := quota.Collect(context.Background(), httpClient, quotaSources(sys, r))
-	err := s.WithLock(func() error { return quota.SaveCache(s, reports) })
-	return reports, err
-}
 
 func runQuota(sys IO, args []string) int {
 	var asJSON, cached bool
@@ -90,50 +33,14 @@ func runQuota(sys IO, args []string) int {
 	var reports []quota.Report
 	if cached {
 		reports = quota.LoadCache(s)
-	} else if reports, err = refreshQuota(sys, s, r); err != nil {
+	} else if reports, err = quota.Refresh(s, r, sys.Getenv); err != nil {
 		return fail(sys, err)
 	}
 	if asJSON {
-		return writeJSON(sys, overviewOf(reports))
+		return writeJSON(sys, quota.OverviewOf(reports))
 	}
 	printOverview(colorOut(sys), reports, time.Now())
 	return 0
-}
-
-type sourceError struct {
-	Source string `json:"source"`
-	Error  string `json:"error"`
-}
-
-type overview struct {
-	Version  int                    `json:"version"`
-	Accounts []quota.Account        `json:"accounts"`
-	Usage    map[string]quota.Usage `json:"usage"`
-	Errors   []sourceError          `json:"errors"`
-}
-
-// overviewOf is the --json shape: every subscription account once, what each
-// credential spent, and which sources failed.
-func overviewOf(reports []quota.Report) overview {
-	o := overview{Version: 1, Accounts: quota.Merge(reports), Usage: map[string]quota.Usage{}, Errors: []sourceError{}}
-	if o.Accounts == nil {
-		o.Accounts = []quota.Account{}
-	}
-	for _, r := range reports {
-		if r.Usage != nil {
-			o.Usage[credentialOf(r.Source)] = *r.Usage
-		}
-		if r.Err != "" {
-			o.Errors = append(o.Errors, sourceError{r.Source, r.Err})
-		}
-	}
-	return o
-}
-
-// credentialOf is the credential name of a gateway source.
-func credentialOf(source string) string {
-	_, name, _ := strings.Cut(source, ":")
-	return name
 }
 
 // sourceTitle is how a source is introduced in the human overview.
@@ -176,7 +83,7 @@ func printOverview(sys IO, reports []quota.Report, now time.Time) {
 		}
 		if u := r.Usage; u != nil {
 			fmt.Fprintf(sys.Out, "  %s%s spent%s today $%.2f (%d req) · week $%.2f · month $%.2f\n",
-				quota.Dim, credentialOf(r.Source), quota.Reset, u.Today.CostUSD, u.Today.Requests, u.Week.CostUSD, u.Month.CostUSD)
+				quota.Dim, quota.CredentialOf(r.Source), quota.Reset, u.Today.CostUSD, u.Today.Requests, u.Week.CostUSD, u.Month.CostUSD)
 		}
 	}
 }
@@ -261,7 +168,7 @@ func runRefreshQuota(sys IO, _ []string) int {
 	if err != nil {
 		return 1
 	}
-	if _, err := refreshQuota(sys, s, r); err != nil {
+	if _, err := quota.Refresh(s, r, sys.Getenv); err != nil {
 		return 1
 	}
 	return 0

@@ -5,7 +5,6 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/YukiagoTpf/muster/internal/setup"
 	"github.com/YukiagoTpf/muster/internal/syncrepo"
@@ -153,81 +152,61 @@ func runSetupRm(sys IO, args []string) int {
 	return 0
 }
 
-// setupResult is what install or update did with one entry.
-type setupResult struct {
-	Name     string `json:"name"`
-	Action   string `json:"action"` // installed, present, updated, failed or skipped
-	ExitCode int    `json:"exitCode,omitempty"`
-	Reason   string `json:"reason,omitempty"`
-}
-
-// setupRun runs setup list commands for install and update: the commands'
-// output goes to the terminal (to stderr under --json), and what got
-// installed is recorded as it happens.
-type setupRun struct {
-	sys     IO
-	m       syncrepo.Machine
-	asJSON  bool
-	state   setup.State
-	results []setupResult
-}
-
-func (sr *setupRun) out() io.Writer {
-	if sr.asJSON {
-		return sr.sys.Err
+// setupRun starts an install or update: `<name>... [flags]`, the named
+// entries (all of them when none is named), and a runner whose commands
+// print to the terminal — to stderr under --json, where stdout carries the
+// results.
+func setupRun(sys IO, name string, args []string, define func(*flagSet)) (*setup.Runner, []setup.Entry, bool, int) {
+	var asJSON bool
+	names, ok := parseArgs(sys, name, args, leading(args), func(f *flagSet) {
+		f.BoolVar(&asJSON, "json", false, "machine-readable output")
+		define(f)
+	})
+	if !ok {
+		return nil, nil, false, 2
 	}
-	return sr.sys.Out
-}
-
-func (sr *setupRun) run(line string, quiet bool) (int, error) {
-	out, errOut := sr.out(), sr.sys.Err
-	if quiet {
-		out, errOut = io.Discard, io.Discard
+	_, m, l, err := openSetup(sys)
+	if err != nil {
+		return nil, nil, false, fail(sys, err)
+	}
+	entries, err := l.Select(names)
+	if err != nil {
+		return nil, nil, false, fail(sys, err)
+	}
+	out := sys.Out
+	if asJSON {
+		out = sys.Err
 	}
 	var in io.Reader
-	if sr.sys.In != nil && !quiet {
-		in = sr.sys.In
+	if sys.In != nil {
+		in = sys.In
 	}
-	return setup.Run(line, sr.sys.Environ(), in, out, errOut)
-}
-
-func (sr *setupRun) record(e setup.Entry) error {
-	sr.state.Installed[e.Name] = setup.Installed{Install: e.Install, At: time.Now().UTC()}
-	return sr.m.Store.WithLock(func() error {
-		st, err := setup.LoadState(sr.m.Store)
-		if err != nil {
-			return err
-		}
-		st.Installed[e.Name] = sr.state.Installed[e.Name]
-		return st.Save(sr.m.Store)
-	})
-}
-
-// installed reports whether the entry is on this machine: recorded, or its
-// check passes (which gets it recorded).
-func (sr *setupRun) installed(e setup.Entry) (bool, error) {
-	if e.Check != "" {
-		code, err := sr.run(e.Check, true)
-		if err != nil || code != 0 {
-			return false, err
-		}
-		if !sr.state.Recorded(e) {
-			return true, sr.record(e)
-		}
-		return true, nil
+	r, err := setup.NewRunner(m.Store, sys.Environ(), in, out)
+	if err != nil {
+		return nil, nil, false, fail(sys, err)
 	}
-	return sr.state.Recorded(e), nil
+	return r, entries, asJSON, -1
 }
 
-func (sr *setupRun) note(res setupResult, human string) {
+// setupResults collects results, printing each as it comes unless --json.
+type setupResults struct {
+	sys     IO
+	asJSON  bool
+	results []setup.Result
+}
+
+func (sr *setupResults) report(res setup.Result) {
 	sr.results = append(sr.results, res)
 	if !sr.asJSON {
-		fmt.Fprintf(sr.sys.Out, "%s: %s\n", res.Name, human)
+		fmt.Fprintf(sr.sys.Out, "%s: %s\n", res.Name, res.Text())
 	}
 }
 
-// finish prints the results and exits 1 if any command failed.
-func (sr *setupRun) finish() int {
+// finish prints the results under --json and exits 1 if a command failed.
+func (sr *setupResults) finish(err error) int {
+	if err != nil {
+		return fail(sr.sys, err)
+	}
 	code := 0
 	for _, r := range sr.results {
 		if r.Action == "failed" {
@@ -236,8 +215,8 @@ func (sr *setupRun) finish() int {
 	}
 	if sr.asJSON {
 		if writeJSON(sr.sys, struct {
-			Version int           `json:"version"`
-			Results []setupResult `json:"results"`
+			Version int            `json:"version"`
+			Results []setup.Result `json:"results"`
 		}{1, sr.results}) != 0 {
 			return 1
 		}
@@ -245,107 +224,25 @@ func (sr *setupRun) finish() int {
 	return code
 }
 
-// startSetupRun parses `<name>... [flags]`, opens the setup list and picks
-// the named entries (all of them when none is named).
-func startSetupRun(sys IO, name string, args []string, define func(*flagSet)) (*setupRun, []setup.Entry, int) {
-	sr := &setupRun{sys: sys}
-	names, ok := parseArgs(sys, name, args, leading(args), func(f *flagSet) {
-		f.BoolVar(&sr.asJSON, "json", false, "machine-readable output")
-		define(f)
-	})
-	if !ok {
-		return nil, nil, 2
-	}
-	_, m, l, err := openSetup(sys)
-	if err != nil {
-		return nil, nil, fail(sys, err)
-	}
-	sr.m = m
-	if sr.state, err = setup.LoadState(m.Store); err != nil {
-		return nil, nil, fail(sys, err)
-	}
-	entries := l.Entries
-	if len(names) > 0 {
-		entries = nil
-		for _, n := range names {
-			e, ok := l.Get(n)
-			if !ok {
-				return nil, nil, fail(sys, fmt.Errorf("the setup list has no %q (see `muster setup list`)", n))
-			}
-			entries = append(entries, e)
-		}
-	}
-	sr.results = []setupResult{}
-	return sr, entries, -1
-}
-
 func runSetupInstall(sys IO, args []string) int {
 	var force bool
-	sr, entries, code := startSetupRun(sys, "setup install", args, func(f *flagSet) {
+	r, entries, asJSON, code := setupRun(sys, "setup install", args, func(f *flagSet) {
 		f.BoolVar(&force, "force", false, "run the install command even if it is installed already")
 	})
 	if code >= 0 {
 		return code
 	}
-	for _, e := range entries {
-		if !force {
-			present, err := sr.installed(e)
-			if err != nil {
-				return fail(sys, err)
-			}
-			if present {
-				sr.note(setupResult{Name: e.Name, Action: "present"}, "installed already")
-				continue
-			}
-		}
-		fmt.Fprintf(sr.out(), "==> %s: %s\n", e.Name, e.Install)
-		exit, err := sr.run(e.Install, false)
-		if err != nil {
-			return fail(sys, err)
-		}
-		if exit != 0 {
-			sr.note(setupResult{Name: e.Name, Action: "failed", ExitCode: exit}, fmt.Sprintf("install failed (exit %d)", exit))
-			continue
-		}
-		if err := sr.record(e); err != nil {
-			return fail(sys, err)
-		}
-		sr.note(setupResult{Name: e.Name, Action: "installed"}, "installed")
-	}
-	return sr.finish()
+	sr := &setupResults{sys: sys, asJSON: asJSON, results: []setup.Result{}}
+	return sr.finish(r.Install(entries, force, sr.report))
 }
 
 func runUpdate(sys IO, args []string) int {
-	sr, entries, code := startSetupRun(sys, "update", args, func(*flagSet) {})
+	r, entries, asJSON, code := setupRun(sys, "update", args, func(*flagSet) {})
 	if code >= 0 {
 		return code
 	}
-	for _, e := range entries {
-		if e.Update == "" {
-			sr.note(setupResult{Name: e.Name, Action: "skipped", Reason: "no update command"}, "no update command")
-			continue
-		}
-		present, err := sr.installed(e)
-		if err != nil {
-			return fail(sys, err)
-		}
-		if !present {
-			reason := "not installed here — `muster setup install " + e.Name + "`"
-			sr.note(setupResult{Name: e.Name, Action: "skipped", Reason: reason}, reason)
-			continue
-		}
-		fmt.Fprintf(sr.out(), "==> %s: %s\n", e.Name, e.Update)
-		exit, err := sr.run(e.Update, false)
-		if err != nil {
-			return fail(sys, err)
-		}
-		if exit != 0 {
-			sr.note(setupResult{Name: e.Name, Action: "failed", ExitCode: exit}, fmt.Sprintf("update failed (exit %d)", exit))
-			continue
-		}
-		sr.note(setupResult{Name: e.Name, Action: "updated"}, "updated")
-	}
-	return sr.finish()
+	sr := &setupResults{sys: sys, asJSON: asJSON, results: []setup.Result{}}
+	return sr.finish(r.Update(entries, sr.report))
 }
 
 // setupHint names the setup list's entries this machine hasn't installed, for
@@ -359,12 +256,7 @@ func setupHint(r *syncrepo.Repo, m syncrepo.Machine) string {
 	if err != nil {
 		return ""
 	}
-	var missing []string
-	for _, e := range l.Entries {
-		if !st.Recorded(e) {
-			missing = append(missing, e.Name)
-		}
-	}
+	missing := st.Missing(l)
 	if len(missing) == 0 {
 		return ""
 	}
