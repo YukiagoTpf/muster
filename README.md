@@ -26,9 +26,16 @@ muster cred add codex-pool --provider astergate --base-url https://gw.example.co
 
 muster cred list            # add --json for agents; keys are never shown
 muster cred rm codex-pool
+
+# launch Claude Code in this pane with a credential (and optionally a model)
+muster run claude-pool -m opus
+muster run codex-pool -- --resume      # args after -- go to Claude Code
+muster run codex-pool --dry-run        # what would be set, blanked and stripped — key names only
 ```
 
-Every command accepts `--json` and prints `{ "version": 1, ... }`; `muster help --json` describes them all.
+A launch overrides only the provider part of Claude Code's settings — base URL, key, model mapping — and leaves your hooks, permissions and plugins alone. Whatever your `~/.claude/settings.json` sets for its own provider (the *default credential*, used when you run `claude` directly or from an IDE) is blanked for the launch, so nothing of it leaks into an instance that uses another credential. Split your terminal however you like and run one `muster run` per pane.
+
+Every command that reports something takes `--json` and prints `{ "version": 1, ... }`; `muster help --json` describes them all.
 
 ## Documentation
 

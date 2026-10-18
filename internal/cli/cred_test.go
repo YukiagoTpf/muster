@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/YukiagoTpf/muster/internal/claude"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
@@ -21,10 +22,16 @@ func newSandbox(t *testing.T) *sandbox {
 	root := t.TempDir()
 	sb := &sandbox{claudeDir: filepath.Join(root, "claude")}
 	os.MkdirAll(sb.claudeDir, 0o700)
-	sb.env = map[string]string{
-		"MUSTER_HOME":       filepath.Join(root, "muster"),
-		"CLAUDE_CONFIG_DIR": sb.claudeDir,
+	// The real environment minus every provider key (this machine's own
+	// gateway key must never reach a test), so a spawned agent can run.
+	sb.env = map[string]string{}
+	for _, kv := range os.Environ() {
+		if k, v, _ := strings.Cut(kv, "="); k != "" && !claude.IsProviderEnvKey(k) {
+			sb.env[k] = v
+		}
 	}
+	sb.env["MUSTER_HOME"] = filepath.Join(root, "muster")
+	sb.env["CLAUDE_CONFIG_DIR"] = sb.claudeDir
 	return sb
 }
 
