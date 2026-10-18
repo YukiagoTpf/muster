@@ -14,6 +14,7 @@ Routing table for documentation upkeep. When code changes, find the owning docs 
 | `internal/**` | `docs/architecture.md` |
 | `internal/repocheck/**`, `go.mod`, `go.sum` | `CONTRIBUTING.md`, `docs/index.md` |
 | `skills/**` | `README.md`, `docs/architecture.md` |
+| `web/**` | `docs/architecture.md`, `CONTRIBUTING.md` |
 | `docs/**` | `docs/index.md` |
 | `README.md`, `CONTRIBUTING.md` | `docs/index.md` |
 | `.gitignore`, `.gitattributes`, `LICENSE` | — |

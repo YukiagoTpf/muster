@@ -8,9 +8,10 @@ Muster keeps your coding-agent credentials in one place, shows how much quota ev
 
 ## Build from source
 
-Requires Go ≥ 1.25.
+Requires Go ≥ 1.25, and Node ≥ 24 for the web page.
 
 ```bash
+(cd web && npm ci && npm run build)   # the web page, embedded by the next step
 go build -o muster ./cmd/muster
 ./muster help
 ```
@@ -43,6 +44,10 @@ muster statusline           # the quota line of a Claude Code statusline (reads 
 
 muster default              # which credential plain `claude` and IDE plugins use
 muster default codex-pool   # make it codex-pool (rewrites only the provider part of settings.json, backs it up first)
+```
+
+```bash
+muster web                  # the same, in a browser: quota, credentials, sync, and an editor for the shared settings
 ```
 
 ```bash

@@ -20,12 +20,25 @@ Thanks for your interest in Muster. (Agents working on this repo: read [AGENTS.m
 | `golang.org/x/sys` | Windows file locking (`LockFileEx`), process liveness (`OpenProcess`) and transient rename errors. The standard library's `syscall` package does not expose them on Windows. |
 | `filippo.io/age` | Encrypting the credentials that go to the sync repo. The standard library has the primitives but no file format; age is an audited one with a standalone tool, so the user can decrypt their own backup without Muster. Passphrase (scrypt) and hybrid post-quantum keys come with it. |
 
+### Frontend dependencies
+
+The web page (`web/`) is built once, at release, and embedded in the binary; nothing here runs at runtime except the bundled React. Motion, icons and controls are written in the page itself rather than pulled in. `go test ./...` fails on a package missing from this table.
+
+| Package | Why |
+| --- | --- |
+| `react`, `react-dom` | The page's UI. |
+| `vite`, `@vitejs/plugin-react` | Bundles the page into `internal/web/dist`. |
+| `typescript`, `@types/react`, `@types/react-dom`, `@types/node` | Type-checks the page (`@types/node` for its tests, which run on Node's own test runner). |
+
 ## Development
 
 ```bash
 go test ./...                                   # run everything, including the repo guardrails
 go vet ./...
 MUSTER_HOME=/tmp/m CLAUDE_CONFIG_DIR=/tmp/c go run ./cmd/muster cred list   # isolated manual testing
+
+cd web && npm ci && npm test && npm run build   # the web page: type-check, test, build into internal/web/dist
+go build ./cmd/muster                           # then build muster again to embed it
 ```
 
 Tests live next to the code. End-to-end tests run the CLI against temp `MUSTER_HOME` and `CLAUDE_CONFIG_DIR` directories and stand in a fake agent binary (`MUSTER_CLAUDE_BIN`) — never touch a real config. Sync tests need `git` on `PATH`; they sync through a local bare repo, never the network.
@@ -38,4 +51,4 @@ Small, atomic commits: one logical change per commit, conventional subject (`fix
 
 ## Cross-platform changes
 
-Platform differences (data and config paths, the platform's name, process liveness, file locking, process spawning, the shell, console mode) are confined to `internal/platform` on purpose; everything else is platform-agnostic. `go test ./...` must pass on Linux, macOS and Windows. The tree is LF everywhere (`.gitattributes`), and a test whose premise only holds on some platforms (POSIX file modes, creating symlinks) skips elsewhere with the reason — it never fails there.
+Platform differences (data and config paths, the platform's name, process liveness, file locking, process spawning, the shell, opening the browser, console mode) are confined to `internal/platform` on purpose; everything else is platform-agnostic. `go test ./...` must pass on Linux, macOS and Windows. The tree is LF everywhere (`.gitattributes`), and a test whose premise only holds on some platforms (POSIX file modes, creating symlinks) skips elsewhere with the reason — it never fails there.

@@ -244,6 +244,30 @@ func TestDirectDependenciesAreJustified(t *testing.T) {
 	}
 }
 
+// The web page's packages earn their place the same way: every dependency in
+// web/package.json is named in CONTRIBUTING.md's frontend table.
+func TestFrontendDependenciesAreJustified(t *testing.T) {
+	dir := root(t)
+	if !exists(dir, "web/package.json") {
+		return
+	}
+	var pkg struct {
+		Dependencies    map[string]string `json:"dependencies"`
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal([]byte(read(t, dir, "web/package.json")), &pkg); err != nil {
+		t.Fatal(err)
+	}
+	contributing := read(t, dir, "CONTRIBUTING.md")
+	for _, deps := range []map[string]string{pkg.Dependencies, pkg.DevDependencies} {
+		for dep := range deps {
+			if !strings.Contains(contributing, "`"+dep+"`") {
+				t.Errorf("web/package.json depends on %s, but CONTRIBUTING.md's frontend table does not justify it", dep)
+			}
+		}
+	}
+}
+
 func TestSkillContracts(t *testing.T) {
 	dir := root(t)
 	entries, err := os.ReadDir(filepath.Join(dir, "skills"))

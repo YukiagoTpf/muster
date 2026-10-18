@@ -137,3 +137,9 @@ func StartDetached(cmd *exec.Cmd) error {
 	}
 	return cmd.Process.Release()
 }
+
+// OpenURL opens a URL in the default browser. The shell's URL handler takes
+// it as one argument, so nothing in it is interpreted by a command shell.
+func OpenURL(url string) error {
+	return exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+}

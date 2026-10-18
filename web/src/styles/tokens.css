@@ -1,0 +1,121 @@
+/* Design tokens. Two themes share every name; components only ever use the
+   variables. Motion follows a small set of curves (see --ease-*). */
+
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", Roboto, "Helvetica Neue", sans-serif;
+  --mono: "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius: 14px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Motion. slide: page and indicator moves; layer: surfaces that open over
+     others; pop: menus; the durations are the feel, so keep them together. */
+  --ease-slide: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-layer: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-pop: cubic-bezier(0.2, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --t-fast: 150ms;
+  --t-base: 200ms;
+  --t-slide: 300ms;
+  --t-slow: 450ms;
+
+  --sidebar: 248px;
+}
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f1f2f5;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --surface-3: #eceef2;
+  --hover: rgba(17, 24, 39, 0.045);
+  --press: rgba(17, 24, 39, 0.08);
+  --border: rgba(17, 24, 39, 0.08);
+  --border-strong: rgba(17, 24, 39, 0.14);
+
+  --text: #0f1724;
+  --text-2: #5b6576;
+  --text-3: #8f98a8;
+  --text-on-accent: #ffffff;
+
+  --accent: #3390ec;
+  --accent-hover: #2a82d8;
+  --accent-soft: rgba(51, 144, 236, 0.11);
+  --accent-softer: rgba(51, 144, 236, 0.06);
+
+  --ok: #1fae60;
+  --ok-soft: rgba(31, 174, 96, 0.12);
+  --warn: #e7930b;
+  --warn-soft: rgba(231, 147, 11, 0.13);
+  --danger: #e5484d;
+  --danger-soft: rgba(229, 72, 77, 0.11);
+
+  --track: rgba(17, 24, 39, 0.07);
+  --ripple: rgba(17, 24, 39, 0.1);
+  --ripple-on-accent: rgba(255, 255, 255, 0.28);
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 2px 8px rgba(16, 24, 40, 0.05);
+  --shadow-lg: 0 10px 38px -10px rgba(16, 24, 40, 0.22), 0 4px 14px -6px rgba(16, 24, 40, 0.12);
+  --backdrop: rgba(15, 23, 36, 0.32);
+
+  --diff-add: rgba(31, 174, 96, 0.12);
+  --diff-del: rgba(229, 72, 77, 0.11);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1218;
+  --bg-elevated: #181c24;
+  --surface: #171b22;
+  --surface-2: #1d222b;
+  --surface-3: #252b36;
+  --hover: rgba(255, 255, 255, 0.045);
+  --press: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
+
+  --text: #e9edf3;
+  --text-2: #9aa4b4;
+  --text-3: #6b7484;
+  --text-on-accent: #ffffff;
+
+  --accent: #5aa7f5;
+  --accent-hover: #6fb3f7;
+  --accent-soft: rgba(90, 167, 245, 0.15);
+  --accent-softer: rgba(90, 167, 245, 0.08);
+
+  --ok: #3ccf7e;
+  --ok-soft: rgba(60, 207, 126, 0.14);
+  --warn: #f2a93b;
+  --warn-soft: rgba(242, 169, 59, 0.15);
+  --danger: #f2666a;
+  --danger-soft: rgba(242, 102, 106, 0.14);
+
+  --track: rgba(255, 255, 255, 0.08);
+  --ripple: rgba(255, 255, 255, 0.12);
+  --ripple-on-accent: rgba(255, 255, 255, 0.25);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 2px 10px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 14px 44px -10px rgba(0, 0, 0, 0.6), 0 4px 16px -6px rgba(0, 0, 0, 0.4);
+  --backdrop: rgba(0, 0, 0, 0.5);
+
+  --diff-add: rgba(60, 207, 126, 0.14);
+  --diff-del: rgba(242, 102, 106, 0.14);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 1ms;
+    --t-base: 1ms;
+    --t-slide: 1ms;
+    --t-slow: 1ms;
+  }
+}

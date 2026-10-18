@@ -1,6 +1,10 @@
 /muster
 /muster.exe
-dist/
+/dist/
+# the web page's build: the binary embeds it, the repo keeps only the placeholder
+/internal/web/dist/*
+!/internal/web/dist/.gitkeep
+node_modules/
 *.log
 .DS_Store
 *.local.md

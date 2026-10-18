@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
 )
 
@@ -57,4 +58,19 @@ func StartDetached(cmd *exec.Cmd) error {
 		return err
 	}
 	return cmd.Process.Release()
+}
+
+// OpenURL opens a URL in the default browser: open on macOS, xdg-open
+// elsewhere.
+func OpenURL(url string) error {
+	name := "xdg-open"
+	if runtime.GOOS == "darwin" {
+		name = "open"
+	}
+	cmd := exec.Command(name, url)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	go cmd.Wait()
+	return nil
 }

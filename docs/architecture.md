@@ -17,6 +17,8 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | `internal/platform` | Every OS difference. Nothing outside it branches on the operating system. |
 | `internal/syncrepo` | Multi-machine sync: the sync repo's layout and encryption, joining it, and the export → merge → apply → push cycle. |
 | `internal/setup` | The setup list, what this machine installed from it, and running its commands. |
+| `internal/web` | `muster web`: the loopback server, its API, and the embedded page. |
+| `web/` | The page itself (React, TypeScript), built into `internal/web/dist`. |
 | `internal/store` | The data directory, its locks, backups, and atomic writes. |
 | `internal/repocheck` | Repo guardrails, as tests. |
 
@@ -127,10 +129,24 @@ What a machine installs beyond Claude Code itself — a set of skills, a framewo
 
 `muster setup install` installs what this machine lacks: an entry whose check exits 0 is present already, as is one without a check that this machine installed with the same install command (`<MUSTER_HOME>/setup-state.json` records each install; a changed command is a new install). `muster update` runs the update command of every entry installed here. A command line runs as the user wrote it, in the platform's shell — `sh -c` on Unix, `cmd.exe /d /s /c` on Windows — with the terminal's stdin and output (under `--json` the output goes to stderr, and stdout carries `{ "version": 1, "results": [{name, action: installed|present|updated|failed|skipped, exitCode, reason}] }`). A failed command fails the run (exit 1) but not the entries after it.
 
+## Web page
+
+`muster web` serves the page on loopback — a free port, or `--port` — until Ctrl-C, and opens it in the browser. The page is a third surface over the same packages as the CLI: every action it offers is one of their functions, under the same locks, and nothing it does is out of the CLI's reach (`cred edit` is the command behind its edit form; the shared settings are a file the CLI user edits directly).
+
+**Security.** Every API call, reads included, needs the session's token. The token reaches the page in the `#fragment` of the URL muster opens; a fragment never goes to a server, so the token stays out of logs and away from other local processes, which can only guess the port. The `Host` header must be `127.0.0.1:<port>` or `localhost:<port>` (no DNS rebinding), a mutation needs a loopback `Origin` (no cross-site requests), and the page is served with a CSP that allows nothing but its own origin.
+
+**API.** JSON under `/api/`: the machine's state; quota (the cache, and a refresh that runs one at a time); credentials (the list with the default credential, add, import from settings.json, edit, remove, make default); sync (status, a sync with `prefer`, and both sides of a conflicting item — a credential shown without its key); tracked files; the setup list, whose install and update stream the commands' output and results as NDJSON; and the shared settings.
+
+**Shared settings editor.** A platform's shared settings as one document: this machine's settings.json without its provider env, or, on a machine that syncs, the sync clone's copy of another platform's, which a save writes into the clone for the next sync to send (refusing secret-looking env, since it goes to the repo as is). A read carries the file's hash and a save carries it back: if the file changed in between — Claude Code writes settings.json too — the save fails with 409 and the page reloads or overwrites, as the user picks. A save puts this machine's provider env back where it stood and backs the old file up; provider env in the content is refused, since it belongs to a credential.
+
+The form over the JSON is a projection, not a parser — the rules of the old editor, kept: own path only; lock what you cannot express; absence is a value; don't churn what nobody edited (`web/src/settings/projection.ts`, tested with Node's test runner). The form's catalog of settings (`web/src/settings/catalog.ts`) is page-side knowledge only: the Go side treats settings as opaque JSON, the provider env aside.
+
+**Build.** React and TypeScript, bundled by Vite into `internal/web/dist`, which the binary embeds. Only a placeholder is committed: a binary built without `npm run build` serves a line saying how to build the page. Motion keeps to a few curves (`web/src/styles/tokens.css`): pages slide and fade (300 ms), menus scale out of their anchor (150 ms), dialogs settle in from above, presses ripple, numbers roll digit by digit, and `prefers-reduced-motion` turns it all down to nothing.
+
 ## Agent skill
 
 `skills/muster/SKILL.md` teaches an agent the agent-facing surface: `cred list --json`, `default --json` and `run --dry-run --json` to look, and `muster run` in a sibling pane to start another instance beside itself (the skill holds the herdr commands; Muster itself never drives a multiplexer), and `sync status --json` and `sync --json` to sync, with the choice of side in a conflict left to the user. It forbids the agent from handling keys and the sync passphrase. Its frontmatter follows the open SKILL.md spec, which `go test ./internal/repocheck` checks.
 
 ## Platform isolation
 
-All platform differences live in `internal/platform`: data, home and application-config directories, the platform's name (which part of the sync repo a machine uses), the shell a user's command line runs in, file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.
+All platform differences live in `internal/platform`: data, home and application-config directories, the platform's name (which part of the sync repo a machine uses), the shell a user's command line runs in, how a URL opens in the browser, file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.

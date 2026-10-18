@@ -60,6 +60,7 @@ func init() {
 		{"setup rm", "muster setup rm <name> [--json]", "Remove an entry from the setup list (what it installed stays)", runSetupRm},
 		{"setup install", "muster setup install [<name>...] [--force] [--json]", "Install the setup list's entries this machine doesn't have yet; a passing check counts as installed", runSetupInstall},
 		{"update", "muster update [<name>...] [--json]", "Run the update command of every setup list entry installed here", runUpdate},
+		{"web", "muster web [--port <n>] [--no-open]", "Open the web page: quota, credentials, sync and the shared settings editor (serves on loopback until Ctrl-C)", runWeb},
 		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
 		{"version", "muster version", "Print the Muster version", runVersion},
 	}
