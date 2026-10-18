@@ -183,9 +183,9 @@ func windowKind(d time.Duration) string {
 	}
 }
 
-// getJSON performs one request and decodes a 200 response into v. Any other
+// fetchJSON performs one request and decodes a 200 response into v. Any other
 // status is an error carrying the start of the body.
-func getJSON(ctx context.Context, c *http.Client, req *http.Request, v any) error {
+func fetchJSON(ctx context.Context, c *http.Client, req *http.Request, v any) error {
 	req = req.WithContext(ctx)
 	if req.Header.Get("Accept") == "" {
 		req.Header.Set("Accept", "application/json")

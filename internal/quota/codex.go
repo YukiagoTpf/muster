@@ -59,7 +59,7 @@ func Codex(authPath, apiBase string) Source {
 			req.Header.Set("Authorization", "Bearer "+auth.Tokens.AccessToken)
 			req.Header.Set("ChatGPT-Account-Id", auth.Tokens.AccountID)
 			var resp codexUsage
-			if err := getJSON(ctx, c, req, &resp); err != nil {
+			if err := fetchJSON(ctx, c, req, &resp); err != nil {
 				return Report{}, err
 			}
 			return resp.report(auth.Tokens.AccountID), nil

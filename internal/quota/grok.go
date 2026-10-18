@@ -61,7 +61,7 @@ func Grok(authPath, apiBase string) Source {
 			}
 			req.Header.Set("Authorization", "Bearer "+token)
 			var resp grokBilling
-			if err := getJSON(ctx, c, req, &resp); err != nil {
+			if err := fetchJSON(ctx, c, req, &resp); err != nil {
 				return Report{}, err
 			}
 			return resp.report(), nil

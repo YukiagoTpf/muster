@@ -38,6 +38,11 @@ func quotaSources(sys IO, r *credential.Registry) []quota.Source {
 	if path := quota.CodexAuthPath(sys.Getenv, home); exists(path) {
 		sources = append(sources, quota.Codex(path, apiBase(sys, "MUSTER_CODEX_API", "https://chatgpt.com/backend-api")))
 	}
+	if dir, err := platform.AppConfigDir(sys.Getenv); err == nil {
+		if path := quota.CursorStatePath(dir); exists(path) {
+			sources = append(sources, quota.Cursor(path, apiBase(sys, "MUSTER_CURSOR_API", "https://api2.cursor.sh")))
+		}
+	}
 	if path := quota.GrokAuthPath(home); exists(path) {
 		sources = append(sources, quota.Grok(path, apiBase(sys, "MUSTER_GROK_API", "https://cli-chat-proxy.grok.com")))
 	}

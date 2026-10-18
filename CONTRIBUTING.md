@@ -16,6 +16,7 @@ Thanks for your interest in Muster. (Agents working on this repo: read [AGENTS.m
 | Module | Why the standard library is not enough |
 | --- | --- |
 | `golang.org/x/term` | Raw terminal mode and terminal size for the interactive picker; the standard library has neither. |
+| `modernc.org/sqlite` | Reading the Cursor editor's login, which lives in a SQLite database the editor keeps open in WAL mode — recent writes sit in the `-wal` file, so only a real SQLite reads them correctly. Pure Go, no cgo; it adds about 6 MB to the binary. |
 | `golang.org/x/sys` | Windows file locking (`LockFileEx`), process liveness (`OpenProcess`) and transient rename errors. The standard library's `syscall` package does not expose them on Windows. |
 
 ## Development

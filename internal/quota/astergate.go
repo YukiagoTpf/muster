@@ -31,7 +31,7 @@ func AsterGate(credential, baseURL, key, sessionID, timezone string) Source {
 				req.Header.Set("X-Claude-Code-Session-Id", sessionID)
 			}
 			var resp asterGateUsage
-			if err := getJSON(ctx, c, req, &resp); err != nil {
+			if err := fetchJSON(ctx, c, req, &resp); err != nil {
 				return Report{}, err
 			}
 			return resp.report(credential), nil

@@ -34,6 +34,34 @@ func Home(getenv func(string) string) (string, error) {
 	return filepath.Join(home, ".config", "muster"), nil
 }
 
+// AppConfigDir is where desktop applications keep their per-user config:
+// %APPDATA% on Windows, ~/Library/Application Support on macOS, and
+// $XDG_CONFIG_HOME (default ~/.config) elsewhere.
+func AppConfigDir(getenv func(string) string) (string, error) {
+	switch runtime.GOOS {
+	case "windows":
+		if a := getenv("APPDATA"); a != "" {
+			return a, nil
+		}
+		return "", errors.New("APPDATA is not set")
+	case "darwin":
+		home, err := UserHome(getenv)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, "Library", "Application Support"), nil
+	default:
+		if x := getenv("XDG_CONFIG_HOME"); x != "" {
+			return x, nil
+		}
+		home, err := UserHome(getenv)
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, ".config"), nil
+	}
+}
+
 // UserHome is the user's home directory (USERPROFILE on Windows, HOME
 // elsewhere).
 func UserHome(getenv func(string) string) (string, error) {

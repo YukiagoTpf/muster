@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -254,5 +255,81 @@ func TestGrokReportsAnExpiredLogin(t *testing.T) {
 	writeFile(t, auth, `{"https://auth.x.ai::c":{"key":"gk","expires_at":"2020-01-01T00:00:00Z"}}`)
 	if r := Collect(context.Background(), http.DefaultClient, []Source{Grok(auth, "http://127.0.0.1:1")})[0]; !strings.Contains(r.Err, "open grok once") {
 		t.Fatalf("expired: %q", r.Err)
+	}
+}
+
+func TestCursorReadsTheEditorLoginThroughWAL(t *testing.T) {
+	tok := jwt(time.Now().Add(time.Hour))
+	statePath := filepath.Join(t.TempDir(), "state.vscdb")
+	// The editor's side: a WAL database it keeps open. The token is written
+	// and not checkpointed, so it exists only in the -wal file.
+	editor, err := sql.Open("sqlite", "file:"+filepath.ToSlash(statePath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer editor.Close()
+	editor.SetMaxOpenConns(1)
+	for _, q := range []string{
+		`PRAGMA journal_mode=WAL`,
+		`PRAGMA wal_autocheckpoint=0`,
+		`CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)`,
+	} {
+		if _, err := editor.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := editor.Exec(`INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', ?)`, tok); err != nil {
+		t.Fatal(err)
+	}
+	mainBefore, _ := os.ReadFile(statePath)
+
+	var calls []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		if r.Header.Get("Authorization") != "Bearer "+tok || r.Header.Get("Connect-Protocol-Version") != "1" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/aiserver.v1.DashboardService/GetCurrentPeriodUsage":
+			w.Write([]byte(`{"billingCycleStart":"1792175544000","billingCycleEnd":"1794853944000","planUsage":{"totalSpend":164,"includedSpend":164,"remaining":39836,"limit":40000,"totalPercentUsed":0.0529}}`))
+		case "/aiserver.v1.DashboardService/GetPlanInfo":
+			w.Write([]byte(`{"planInfo":{"planName":"Ultra","price":"$200/mo"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	r := Collect(context.Background(), srv.Client(), []Source{Cursor(statePath, srv.URL)})[0]
+	if r.Err != "" {
+		t.Fatal(r.Err)
+	}
+	a := r.Accounts[0]
+	if a.Platform != "cursor" || a.Plan != "Ultra" || len(a.Windows) != 1 || a.Windows[0].Kind != "month" || a.Windows[0].Used != 0.0041 {
+		t.Fatalf("account = %+v (used must come from totalSpend / limit)", a)
+	}
+	if a.Note != "$1.64 of $400.00 included" || a.Windows[0].ResetsAt.UnixMilli() != 1794853944000 {
+		t.Errorf("note = %q, resets = %v", a.Note, a.Windows[0].ResetsAt)
+	}
+	if strings.Join(calls, ",") != "POST /aiserver.v1.DashboardService/GetCurrentPeriodUsage,POST /aiserver.v1.DashboardService/GetPlanInfo" {
+		t.Errorf("calls = %v", calls)
+	}
+	if mainAfter, _ := os.ReadFile(statePath); !reflect.DeepEqual(mainBefore, mainAfter) {
+		t.Fatal("reading the login modified the editor's database")
+	}
+}
+
+func TestCursorWithoutALogin(t *testing.T) {
+	dir := t.TempDir()
+	if r := Collect(context.Background(), http.DefaultClient, []Source{Cursor(filepath.Join(dir, "none.vscdb"), "http://127.0.0.1:1")})[0]; r.Err != ErrNoLogin.Error() {
+		t.Fatalf("missing db: %q", r.Err)
+	}
+	statePath := filepath.Join(dir, "state.vscdb")
+	db, _ := sql.Open("sqlite", "file:"+filepath.ToSlash(statePath))
+	db.Exec(`CREATE TABLE ItemTable (key TEXT, value BLOB)`)
+	db.Close()
+	if r := Collect(context.Background(), http.DefaultClient, []Source{Cursor(statePath, "http://127.0.0.1:1")})[0]; r.Err != ErrNoLogin.Error() {
+		t.Fatalf("logged out: %q", r.Err)
 	}
 }
