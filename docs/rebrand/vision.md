@@ -91,7 +91,7 @@
 3. 额度接口（2026-10-18 用本机登录实测，只读，没有刷新 token）：
    - ✅ **Codex**：`GET https://chatgpt.com/backend-api/wham/usage`，带 `Authorization: Bearer <access_token>` 和 `ChatGPT-Account-Id: <account_id>`，两个值都来自 `~/.codex/auth.json`。返回 `plan_type`，以及 `rate_limit.primary_window` 和 `secondary_window`，每个窗口有 `used_percent`、`limit_window_seconds`、`reset_at`。实测 Pro 只有一个 7 天窗口，`secondary_window` 为 `null`；另外有 `credits.balance`。access token 有效期约 10 天，由 Codex CLI 负责刷新。
    - ✅ **Cursor**：Connect RPC 接口 `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage` 和 `GetPlanInfo`，请求体为 `{}`，带 `Authorization: Bearer <cursorAuth/accessToken>`、`Content-Type: application/json`、`Connect-Protocol-Version: 1`。返回计费周期的起止时间，以及 `planUsage` 的 `limit` / `totalSpend` / `remaining`（单位看起来是美分）和 `totalPercentUsed`。`totalPercentUsed` 的单位和 `totalSpend / limit` 对不上，实现时要核对。`GetPlanInfo` 返回套餐名（实测是 Ultra）。
-   - ⏳ **Grok**：Grok CLI 的 `/usage` 会显示账号额度（Usage limit），但它调用的接口要等本机 `grok login` 之后才能抓到。登录信息在 `~/.grok/auth.json`。
+   - ✅ **Grok**：`GET https://cli-chat-proxy.grok.com/v1/billing?format=credits`，带 `Authorization: Bearer <key>`。`key` 来自 `~/.grok/auth.json` 里以 issuer 命名的那一项；不加 `format=credits` 时，返回的是旧的按月格式，而且数值全为 0。返回内容包括 `currentPeriod`（实测是按周，带起止时间）、`creditUsagePercent`，以及 `productUsage[]`（按产品分别给出 `usagePercent`）。套餐名（实测是 SuperGrok Heavy）这个接口不返回，只在 Grok CLI 的日志里出现过，来源还要再查。**注意**：access token 只有约 6 小时有效期，由 Grok CLI 在使用时刷新；Muster 不会去刷新它，所以 token 过期后只能显示"已过期，打开 grok 刷新一下"。
 4. AsterGate 能不能把 Claude Code 的请求转给 Codex 池。这是在 Claude Code 里使用 Codex 池 key 的前提。目前手上只有 Claude 池的 key，还测不了。
 5. 公司电脑上有没有 managed settings 覆盖 `--settings`。目前这台 Windows 机器上的 `C:/Program Files/ClaudeCode/managed-settings.json` 只设置了代理变量（`127.0.0.1:17971`），不影响 `ANTHROPIC_*` 的覆盖；公司电脑还需要单独检查。
 6. 公司网络能不能访问 AsterGate。
