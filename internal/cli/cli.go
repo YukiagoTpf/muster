@@ -36,7 +36,9 @@ type command struct {
 	run     func(sys IO, args []string) int
 }
 
-var commands []command
+// commands is the public surface; plumbing is muster's own background work,
+// dispatched like a command but never listed in help.
+var commands, plumbing []command
 
 func init() {
 	commands = []command{
@@ -49,6 +51,9 @@ func init() {
 		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
 		{"version", "muster version", "Print the Muster version", runVersion},
 	}
+	plumbing = []command{
+		{"__refresh-quota", "muster __refresh-quota", "Refresh the quota cache (spawned in the background)", runRefreshQuota},
+	}
 }
 
 // Main runs one muster invocation and returns its exit code.
@@ -56,7 +61,7 @@ func Main(args []string, sys IO) int {
 	if len(args) == 0 {
 		return runPick(sys)
 	}
-	for _, c := range commands {
+	for _, c := range append(commands, plumbing...) {
 		words := strings.Fields(c.name)
 		if len(args) >= len(words) && strings.Join(args[:len(words)], " ") == c.name {
 			return c.run(sys, args[len(words):])

@@ -113,3 +113,18 @@ func EnableVT(out *os.File) func() {
 	}
 	return func() { windows.SetConsoleMode(h, mode) }
 }
+
+// StartDetached starts cmd with no console and no stdio, in its own process
+// group so a Ctrl-C in this console doesn't reach it, and lets it outlive
+// this process.
+func StartDetached(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
+		HideWindow:    true,
+	}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/YukiagoTpf/muster/internal/credential"
 	"github.com/YukiagoTpf/muster/internal/launch"
 	"github.com/YukiagoTpf/muster/internal/picker"
+	"github.com/YukiagoTpf/muster/internal/quota"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
@@ -31,12 +33,14 @@ func runPick(sys IO) int {
 		return 0
 	}
 	last := launch.LoadLast(s)
+	reports := quota.LoadCache(s)
+	refreshIfStale(sys, reports, time.Now())
 
 	term, err := picker.Open(sys.In, out)
 	if err != nil {
 		return fail(sys, err)
 	}
-	cred, model, ok, err := pickCredentialAndModel(term, r, last)
+	cred, model, ok, err := pickCredentialAndModel(term, r, last, reports)
 	term.Close()
 	if err != nil {
 		return fail(sys, err)
@@ -56,8 +60,8 @@ func runPick(sys IO) int {
 	return startLaunch(sys, s, plan)
 }
 
-func pickCredentialAndModel(term *picker.Terminal, r *credential.Registry, last launch.Last) (cred, model string, ok bool, err error) {
-	creds := credentialScreen(r, last)
+func pickCredentialAndModel(term *picker.Terminal, r *credential.Registry, last launch.Last, reports []quota.Report) (cred, model string, ok bool, err error) {
+	creds := credentialScreen(r, last, reports, time.Now())
 	for {
 		var o picker.Outcome
 		creds, o, err = term.Pick(creds)
@@ -85,11 +89,14 @@ func pickCredentialAndModel(term *picker.Terminal, r *credential.Registry, last 
 	}
 }
 
-func credentialScreen(r *credential.Registry, last launch.Last) picker.Screen {
+func credentialScreen(r *credential.Registry, last launch.Last, reports []quota.Report, now time.Time) picker.Screen {
 	s := picker.Screen{Title: "Launch Claude Code with"}
+	if age := oldest(reports); !age.IsZero() {
+		s.Title += "  " + quota.Dim + "quota " + quota.Age(age, now) + quota.Reset
+	}
 	for i, c := range r.Credentials {
 		detail := c.Provider + " · " + host(c.BaseURL) + " · " + aliases(c)
-		item := picker.Item{Label: c.Name, Detail: detail}
+		item := picker.Item{Label: c.Name, Quota: quotaSummary(c.Name, reports, now), Detail: detail}
 		if c.Name == last.Credential {
 			item.Tag, s.Cursor = "last", i
 		}
@@ -120,6 +127,17 @@ func modelScreen(c credential.Credential, last launch.Last) (picker.Screen, bool
 	}
 	s.Items = append(s.Items, def)
 	return s, true
+}
+
+// oldest is when the oldest cached report was fetched.
+func oldest(reports []quota.Report) time.Time {
+	var t time.Time
+	for _, r := range reports {
+		if t.IsZero() || r.FetchedAt.Before(t) {
+			t = r.FetchedAt
+		}
+	}
+	return t
 }
 
 func host(baseURL string) string {

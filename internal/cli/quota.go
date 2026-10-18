@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -217,4 +218,84 @@ func windowText(w quota.Window, now time.Time) string {
 		text += fmt.Sprintf(" %s↻%s%s", quota.Dim, r, quota.Reset)
 	}
 	return text
+}
+
+// staleAfter is how old the quota cache may get before a view that shows it
+// starts a background refresh.
+const staleAfter = time.Minute
+
+// spawnBackground starts muster again, detached, with args. Tests replace it:
+// spawning the test binary would run the tests.
+var spawnBackground = func(sys IO, args ...string) error {
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(self, args...)
+	cmd.Env = sys.Environ()
+	return platform.StartDetached(cmd)
+}
+
+// refreshIfStale starts a background quota refresh when the cache is older
+// than staleAfter (or missing) and there is something to read.
+func refreshIfStale(sys IO, reports []quota.Report, now time.Time) {
+	fresh := len(reports) > 0
+	for _, r := range reports {
+		if now.Sub(r.FetchedAt) > staleAfter {
+			fresh = false
+		}
+	}
+	if !fresh {
+		spawnBackground(sys, "__refresh-quota")
+	}
+}
+
+// runRefreshQuota is the background refresh: fetch everything, cache it,
+// print nothing.
+func runRefreshQuota(sys IO, _ []string) int {
+	s, err := store.Open(sys.Getenv)
+	if err != nil {
+		return 1
+	}
+	r, err := credential.Load(s)
+	if err != nil {
+		return 1
+	}
+	if _, err := refreshQuota(sys, s, r); err != nil {
+		return 1
+	}
+	return 0
+}
+
+// quotaSummary is the picker's quota cell for a gateway credential: the
+// windows of the account in its pool with the most headroom — the one a new
+// session can count on.
+func quotaSummary(credential string, reports []quota.Report, now time.Time) string {
+	for _, r := range reports {
+		if r.Source != "astergate:"+credential {
+			continue
+		}
+		if r.Err != "" {
+			return "\x1b[1;31mquota unavailable" + quota.Reset
+		}
+		var best *quota.Account
+		for i := range r.Accounts {
+			if best == nil || r.Accounts[i].Pressure(now) < best.Pressure(now) {
+				best = &r.Accounts[i]
+			}
+		}
+		if best == nil {
+			return ""
+		}
+		var parts []string
+		for _, w := range best.Windows {
+			if w.Expired(now) {
+				parts = append(parts, quota.Dim+w.Kind+" reset"+quota.Reset)
+				continue
+			}
+			parts = append(parts, quota.Dim+w.Kind+quota.Reset+" "+quota.Bar(w.Used, 5)+" "+quota.Percent(w.Used))
+		}
+		return strings.Join(parts, "  ")
+	}
+	return ""
 }

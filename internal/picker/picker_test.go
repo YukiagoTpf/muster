@@ -105,3 +105,15 @@ func TestFitCutsVisibleColumnsOnly(t *testing.T) {
 		t.Fatal("fit miscounts")
 	}
 }
+
+func TestLinesAlignTheQuotaColumn(t *testing.T) {
+	s := Screen{Title: "t", Items: []Item{
+		{Label: "a", Quota: cyan + "5h 20%" + reset, Detail: "x"},
+		{Label: "bb", Detail: "y"},
+	}}
+	lines := s.Lines(0)
+	a, b := ansi.ReplaceAllString(lines[1], ""), ansi.ReplaceAllString(lines[2], "")
+	if a != "❯ a   5h 20%  x" || b != "  bb  "+strings.Repeat(" ", 6)+"  y" {
+		t.Fatalf("lines = %q / %q", a, b)
+	}
+}

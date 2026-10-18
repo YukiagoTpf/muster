@@ -16,6 +16,10 @@ import (
 // the test binary locks the file named by MUSTER_LOCK_FILE, reports it, and
 // waits to be killed.
 func TestMain(m *testing.M) {
+	if os.Getenv("MUSTER_PLATFORM_HELPER") == "touch" {
+		os.WriteFile(os.Getenv("MUSTER_TOUCH_FILE"), nil, 0o600)
+		os.Exit(0)
+	}
 	if os.Getenv("MUSTER_PLATFORM_HELPER") == "hold-lock" {
 		f, err := os.OpenFile(os.Getenv("MUSTER_LOCK_FILE"), os.O_CREATE|os.O_RDWR, 0o600)
 		if err == nil {
@@ -136,4 +140,21 @@ func TestRenameReplaces(t *testing.T) {
 	if got, _ := os.ReadFile(b); string(got) != "new" {
 		t.Fatalf("b = %q", got)
 	}
+}
+
+func TestStartDetachedRuns(t *testing.T) {
+	out := filepath.Join(t.TempDir(), "ran")
+	cmd := exec.Command(os.Args[0], "-test.run=^$")
+	cmd.Env = append(os.Environ(), "MUSTER_PLATFORM_HELPER=touch", "MUSTER_TOUCH_FILE="+out)
+	if err := StartDetached(cmd); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(out); err == nil {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("the detached process never ran")
 }

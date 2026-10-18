@@ -13,6 +13,7 @@ import (
 // Item is one row of a screen.
 type Item struct {
 	Label  string // the thing chosen, e.g. a credential name
+	Quota  string // a styled quota cell, aligned in its own column
 	Detail string // dim context after the label
 	Tag    string // a short marker such as "last"
 }
@@ -131,9 +132,10 @@ func (s Screen) Lines(width int) []string {
 		}
 		return n
 	}
-	headWidth := 0
+	headWidth, quotaWidth := 0, 0
 	for _, it := range s.Items {
 		headWidth = max(headWidth, head(it))
+		quotaWidth = max(quotaWidth, visible(it.Quota))
 	}
 	for i, it := range s.Items {
 		marker, label := "  ", it.Label
@@ -143,10 +145,30 @@ func (s Screen) Lines(width int) []string {
 		if it.Tag != "" {
 			label += " " + yellow + "(" + it.Tag + ")" + reset
 		}
-		pad := strings.Repeat(" ", headWidth-head(it))
-		lines = append(lines, fit(fmt.Sprintf("%s%s%s  %s%s%s", marker, label, pad, dim, it.Detail, reset), width))
+		line := marker + label + strings.Repeat(" ", headWidth-head(it))
+		if quotaWidth > 0 {
+			line += "  " + it.Quota + strings.Repeat(" ", quotaWidth-visible(it.Quota))
+		}
+		lines = append(lines, fit(fmt.Sprintf("%s  %s%s%s", line, dim, it.Detail, reset), width))
 	}
 	return lines
+}
+
+// visible is the number of columns s takes, ANSI escapes excluded.
+func visible(s string) int {
+	n := 0
+	for i := 0; i < len(s); {
+		if s[i] == 0x1b {
+			if end := strings.IndexByte(s[i:], 'm'); end >= 0 {
+				i += end + 1
+				continue
+			}
+		}
+		_, size := utf8.DecodeRuneInString(s[i:])
+		n++
+		i += size
+	}
+	return n
 }
 
 // fit cuts s to width visible columns, skipping ANSI escapes when counting

@@ -71,13 +71,13 @@ Quota belongs to a **subscription account** (5-hour, weekly, monthly … windows
 
 Every source is isolated: one that fails — network, HTTP status, expired login — reports its error in its own place and the others are unaffected. `quota.Merge` folds the reports into one list in which an account reachable through several gateway keys appears once (the freshest observation wins; `via` lists every key). A window whose reset time has passed since it was observed shows as reset rather than with a stale percentage.
 
-Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ] }`.
+Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. When the picker finds the cache older than a minute (or missing) it starts a detached `muster __refresh-quota` — plumbing, not listed in help — and goes on with what it has; the next view is fresh. A detached process runs in its own session on Unix and with no console in its own process group on Windows, so it outlives the picker and a Ctrl-C in the terminal can't reach it. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ] }`.
 
 Human output is colored only on a terminal and when `NO_COLOR` is unset; anywhere else the escapes are stripped.
 
 ## Picker
 
-A bare `muster` in a terminal is the quickest launch: a list of credentials (provider, gateway host, mapped models), then that credential's model aliases plus the agent's own default; Enter launches, so a repeat of the last launch is two keypresses. Arrows or j/k move, a digit picks a row directly, Esc goes back, q quits. A credential that maps no alias skips the model screen. Without a terminal on both ends a bare `muster` prints help instead.
+A bare `muster` in a terminal is the quickest launch: a list of credentials — each gateway credential with the windows of the account in its pool that has the most headroom (the one a new session can count on), then provider, gateway host and mapped models — then that credential's model aliases plus the agent's own default; Enter launches, so a repeat of the last launch is two keypresses. Arrows or j/k move, a digit picks a row directly, Esc goes back, q quits. A credential that maps no alias skips the model screen. Without a terminal on both ends a bare `muster` prints help instead.
 
 `picker.Screen` is pure — keys in, cursor and lines out — and `picker.Terminal` does the I/O: raw mode, hidden cursor, the frame redrawn in place with every line cut to the terminal width (a wrapped line would break the redraw), and the frame erased on exit so only the launch line remains. On a Windows console, virtual-terminal processing is switched on for the picker's lifetime.
 
@@ -87,4 +87,4 @@ A bare `muster` in a terminal is the quickest launch: a list of credentials (pro
 
 ## Platform isolation
 
-All platform differences live in `internal/platform`: data, home and application-config directories, file locking, renames, process liveness, how a command is spawned and how its exit code reads. Everything else is platform-agnostic.
+All platform differences live in `internal/platform`: data, home and application-config directories, file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.

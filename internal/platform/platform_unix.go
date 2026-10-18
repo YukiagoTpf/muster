@@ -43,3 +43,14 @@ func ExitCode(e *exec.ExitError) int {
 // EnableVT makes out interpret ANSI escape sequences and returns a restore
 // func. Unix terminals always do.
 func EnableVT(*os.File) func() { return func() {} }
+
+// StartDetached starts cmd in its own session, with no terminal and no
+// stdio, and lets it outlive this process.
+func StartDetached(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
+}
