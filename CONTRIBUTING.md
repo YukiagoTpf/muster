@@ -13,7 +13,9 @@ Thanks for your interest in Muster. (Agents working on this repo: read [AGENTS.m
 
 ## Dependencies
 
-None yet — the module builds on the standard library alone.
+| Module | Why the standard library is not enough |
+| --- | --- |
+| `golang.org/x/sys` | Windows file locking (`LockFileEx`), process liveness (`OpenProcess`) and transient rename errors. The standard library's `syscall` package does not expose them on Windows. |
 
 ## Development
 
