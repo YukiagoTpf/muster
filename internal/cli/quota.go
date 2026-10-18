@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/YukiagoTpf/muster/internal/credential"
+	"github.com/YukiagoTpf/muster/internal/platform"
 	"github.com/YukiagoTpf/muster/internal/quota"
 	"github.com/YukiagoTpf/muster/internal/store"
 )
@@ -28,7 +30,29 @@ func quotaSources(sys IO, r *credential.Registry) []quota.Source {
 			sources = append(sources, quota.AsterGate(c.Name, c.BaseURL, key, "", tz))
 		}
 	}
+	home, err := platform.UserHome(sys.Getenv)
+	if err != nil {
+		return sources
+	}
+	// A local login is a source only where that client is logged in.
+	if path := quota.CodexAuthPath(sys.Getenv, home); exists(path) {
+		sources = append(sources, quota.Codex(path, codexAPI(sys)))
+	}
 	return sources
+}
+
+// codexAPI is the ChatGPT backend the Codex limits come from
+// (MUSTER_CODEX_API overrides it for tests).
+func codexAPI(sys IO) string {
+	if u := sys.Getenv("MUSTER_CODEX_API"); u != "" {
+		return u
+	}
+	return "https://chatgpt.com/backend-api"
+}
+
+func exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // refreshQuota reads every source and caches the result.

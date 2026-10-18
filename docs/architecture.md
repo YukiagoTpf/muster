@@ -64,6 +64,9 @@ Quota belongs to a **subscription account** (5-hour, weekly, monthly … windows
 
 - **gateway credentials** (`provider: astergate`) — `GET <baseURL>/me/usage` with the credential's key. It is read-only and spends no quota. It answers with the subscription accounts in the key's pool and what the key spent today, this week and this month (cut in the `timezone` Muster sends: `TZ`, else the `Etc/GMT±N` zone of the local offset). Only account-wide windows count; a model-scoped window is not the account's limit.
 
+- **local logins** of other clients, each a source only on a machine where that client is logged in, read-only, with the access token used as is and **never refreshed** — refreshing would rotate the client's refresh token and log the client out. A token past its expiry reports so, and the client renews it the next time it runs:
+  - **Codex** — the Codex CLI's ChatGPT login (`$CODEX_HOME/auth.json`, default `~/.codex/auth.json`) → `GET https://chatgpt.com/backend-api/wham/usage`: plan, the rate-limit windows (named by length, e.g. a 604800 s window is `week`), and the credit balance.
+
 Every source is isolated: one that fails — network, HTTP status, expired login — reports its error in its own place and the others are unaffected. `quota.Merge` folds the reports into one list in which an account reachable through several gateway keys appears once (the freshest observation wins; `via` lists every key). A window whose reset time has passed since it was observed shows as reset rather than with a stale percentage.
 
 Every fetch is cached in `<MUSTER_HOME>/quota.json`, so views that must not wait on the network (the picker, `quota --cached`) show the last numbers with their age. `quota --json` is `{ "version": 1, "accounts": [...], "usage": { credential: {today, week, month} }, "errors": [ {source, error} ] }`.

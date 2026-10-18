@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -84,5 +86,27 @@ func TestColorOutStripsEscapesOffTerminal(t *testing.T) {
 	sys.Out.Write([]byte("\x1b[1;32m25%\x1b[0m done"))
 	if b.String() != "25% done" {
 		t.Fatalf("got %q", b.String())
+	}
+}
+
+func TestQuotaReadsTheCodexLoginOnlyWhereItExists(t *testing.T) {
+	sb := newSandbox(t)
+	_, out, _ := sb.run(t, "", "quota", "--json")
+	if !strings.Contains(out, `"accounts": []`) || !strings.Contains(out, `"errors": []`) {
+		t.Fatalf("no logins anywhere should mean no sources and no errors: %s", out)
+	}
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":50,"limit_window_seconds":18000,"reset_at":4102444800}}}`))
+	}))
+	defer api.Close()
+	sb.env["MUSTER_CODEX_API"] = api.URL
+	auth := filepath.Join(sb.env["HOME"], ".codex", "auth.json")
+	os.MkdirAll(filepath.Dir(auth), 0o700)
+	os.WriteFile(auth, []byte(`{"auth_mode":"chatgpt","tokens":{"access_token":"t","account_id":"acct-c"}}`), 0o600)
+	_, out, _ = sb.run(t, "", "quota", "--json")
+	var o overview
+	json.Unmarshal([]byte(out), &o)
+	if len(o.Accounts) != 1 || o.Accounts[0].Platform != "codex" || o.Accounts[0].Plan != "plus" || o.Accounts[0].Windows[0].Kind != "5h" {
+		t.Fatalf("overview = %+v", o)
 	}
 }

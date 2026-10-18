@@ -32,6 +32,15 @@ func newSandbox(t *testing.T) *sandbox {
 	}
 	sb.env["MUSTER_HOME"] = filepath.Join(root, "muster")
 	sb.env["CLAUDE_CONFIG_DIR"] = sb.claudeDir
+	// Every home and config root points into the sandbox too, so no test can
+	// read this machine's own logins (Codex, Cursor, Grok) or call their APIs.
+	home := filepath.Join(root, "home")
+	for _, k := range []string{"HOME", "USERPROFILE"} {
+		sb.env[k] = home
+	}
+	sb.env["APPDATA"] = filepath.Join(home, "AppData", "Roaming")
+	sb.env["XDG_CONFIG_HOME"] = filepath.Join(home, ".config")
+	delete(sb.env, "CODEX_HOME")
 	return sb
 }
 

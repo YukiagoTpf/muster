@@ -2,10 +2,14 @@ package quota
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -143,5 +147,76 @@ func TestJWTExpiry(t *testing.T) {
 	}
 	if !jwtExpiry("not-a-jwt").IsZero() {
 		t.Fatal("garbage parsed")
+	}
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// jwt is an unsigned JWT whose exp claim is exp.
+func jwt(exp time.Time) string {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"exp":` + strconv.FormatInt(exp.Unix(), 10) + `}`))
+	return "eyJhbGciOiJub25lIn0." + payload + ".sig"
+}
+
+func TestCodexReadsTheCLILoginWithoutRefreshing(t *testing.T) {
+	tok := jwt(time.Now().Add(time.Hour))
+	var gotAuth, gotAccount string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/backend-api/wham/usage" {
+			t.Errorf("Codex asked %s (only the read-only usage endpoint is allowed)", r.URL.Path)
+		}
+		gotAuth, gotAccount = r.Header.Get("Authorization"), r.Header.Get("ChatGPT-Account-Id")
+		w.Write([]byte(`{"plan_type":"pro","rate_limit":{"limit_reached":false,
+		  "primary_window":{"used_percent":12.5,"limit_window_seconds":604800,"reset_at":1792896075},
+		  "secondary_window":{"used_percent":40,"limit_window_seconds":18000,"reset_at":1792800000}},
+		  "credits":{"has_credits":true,"unlimited":false,"balance":"62500.0000000000"}}`))
+	}))
+	defer srv.Close()
+	auth := filepath.Join(t.TempDir(), "auth.json")
+	original := `{"auth_mode":"chatgpt","tokens":{"access_token":"` + tok + `","refresh_token":"rt","account_id":"acct-9"},"last_refresh":"x"}`
+	writeFile(t, auth, original)
+
+	r := Collect(context.Background(), srv.Client(), []Source{Codex(auth, srv.URL+"/backend-api")})[0]
+	if r.Err != "" {
+		t.Fatal(r.Err)
+	}
+	if gotAuth != "Bearer "+tok || gotAccount != "acct-9" {
+		t.Errorf("auth = %q, account = %q", gotAuth, gotAccount)
+	}
+	a := r.Accounts[0]
+	if a.Platform != "codex" || a.Plan != "pro" || a.Note != "credits 62500" || len(a.Windows) != 2 {
+		t.Fatalf("account = %+v", a)
+	}
+	if a.Windows[0].Kind != "week" || a.Windows[0].Used != 0.125 || a.Windows[0].ResetsAt.Unix() != 1792896075 || a.Windows[1].Kind != "5h" {
+		t.Errorf("windows = %+v", a.Windows)
+	}
+	if b, _ := os.ReadFile(auth); string(b) != original {
+		t.Fatal("the Codex login file was modified")
+	}
+}
+
+func TestCodexRefusals(t *testing.T) {
+	dir := t.TempDir()
+	missing := Collect(context.Background(), http.DefaultClient, []Source{Codex(filepath.Join(dir, "none.json"), "http://127.0.0.1:1")})[0]
+	if missing.Err != ErrNoLogin.Error() {
+		t.Errorf("missing login: %q", missing.Err)
+	}
+	expired := filepath.Join(dir, "expired.json")
+	writeFile(t, expired, `{"auth_mode":"chatgpt","tokens":{"access_token":"`+jwt(time.Now().Add(-time.Minute))+`","account_id":"a"}}`)
+	if r := Collect(context.Background(), http.DefaultClient, []Source{Codex(expired, "http://127.0.0.1:1")})[0]; !strings.Contains(r.Err, "open codex once") {
+		t.Errorf("expired login: %q", r.Err)
+	}
+	apiKey := filepath.Join(dir, "apikey.json")
+	writeFile(t, apiKey, `{"auth_mode":"apikey","OPENAI_API_KEY":"sk"}`)
+	if r := Collect(context.Background(), http.DefaultClient, []Source{Codex(apiKey, "http://127.0.0.1:1")})[0]; !strings.Contains(r.Err, "ChatGPT account") {
+		t.Errorf("api key login: %q", r.Err)
 	}
 }
