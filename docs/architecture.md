@@ -15,7 +15,8 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | `internal/picker` | The interactive chooser behind a bare `muster`. |
 | `internal/fakeagent` | A stand-in agent for tests (the test binary re-executes itself as one). |
 | `internal/platform` | Every OS difference. Nothing outside it branches on the operating system. |
-| `internal/store` | The data directory, its lock, and atomic JSON writes. |
+| `internal/syncrepo` | Multi-machine sync: the sync repo's layout and encryption, joining it, and the export → merge → apply → push cycle. |
+| `internal/store` | The data directory, its locks, backups, and atomic writes. |
 | `internal/repocheck` | Repo guardrails, as tests. |
 
 ## Data directory
@@ -24,7 +25,7 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 
 ## Transactional mutation
 
-- **Lock** — one lock file (`<MUSTER_HOME>/lock`) under an OS lock: `flock` on Unix, `LockFileEx` on Windows. Every mutating command holds it across the whole read → decide → write sequence, so a concurrent edit can't land between the decision and the write. The kernel drops the lock when the holder exits — killed or crashed included — so there is no stale-owner detection, no stealing and no fencing. Two handles in one process contend like two processes. `WithLock` is not reentrant: a command takes it once, at the top. A contender waits up to 10 s, then fails naming the lock file.
+- **Lock** — one lock file (`<MUSTER_HOME>/lock`; a sync holds a second one around it, see [Sync](#sync)) under an OS lock: `flock` on Unix, `LockFileEx` on Windows. Every mutating command holds it across the whole read → decide → write sequence, so a concurrent edit can't land between the decision and the write. The kernel drops the lock when the holder exits — killed or crashed included — so there is no stale-owner detection, no stealing and no fencing. Two handles in one process contend like two processes. `WithLock` is not reentrant: a command takes it once, at the top. A contender waits up to 10 s, then fails naming the lock file.
 - **Atomic writes** — bytes go to a tmp file beside the target, are fsynced, then renamed into place (0600), so a reader sees the old content or the new, never a torn one. On Windows a rename that a scanner or indexer transiently denies is retried. A symlinked target (a file linked into a dotfiles repo) is written through: the rename lands on the file the link points at, never on the link.
 
 ## Credentials
@@ -87,10 +88,41 @@ A bare `muster` in a terminal is the quickest launch: a list of credentials — 
 
 `picker.Screen` is pure — keys in, cursor and lines out — and `picker.Terminal` does the I/O: raw mode, hidden cursor, the frame redrawn in place with every line cut to the terminal width (a wrapped line would break the redraw), and the frame erased on exit so only the launch line remains. On a Windows console, virtual-terminal processing is switched on for the picker's lifetime.
 
+## Sync
+
+`muster sync` keeps the user's machines in step through a private git repo of their own (on GitHub, say), separate from Muster's. Muster drives the user's `git`, so the remote authenticates however their git already does; git never prompts (`GIT_TERMINAL_PROMPT=0`), and every call overrides the config that would change the outcome: no line-ending conversion, no commit signing, a fixed committer.
+
+**What syncs.** The repo's layout:
+
+```
+muster.json                {"version": 1}: a Muster sync repo
+identity.age               the repo's age identity, encrypted with the user's passphrase
+credentials/<name>.age     each credential with its key, encrypted to the identity
+<platform>/settings.json   the platform's shared settings
+<platform>/files/<path>    the platform's tracked files, by their path under the home directory
+```
+
+`<platform>` is `windows`, `macos` or `linux`: machines on one platform share its settings and files; credentials are shared by all. The shared settings are `settings.json` minus the provider env, so the default credential never leaves the machine; a settings file whose remaining env has a secret-looking key (`…_TOKEN`, `…_API_KEY`) is refused rather than sent. Tracked files are files the user wrote and named (`muster track <path>`), under the home directory; `settings.json` and Muster's own data can't be tracked. Nothing else syncs — not what installers put down, not logins, not session history.
+
+**Secrets.** Credentials are age files, readable with the age tool alone. Each is encrypted to the repo's identity — a hybrid post-quantum age key made with the repo — and the identity is encrypted with the passphrase (scrypt). A machine asks for the passphrase once, when it joins, and keeps the identity in `<MUSTER_HOME>/sync.json` (0600), as it keeps keys in `secrets.json`. An unchanged credential keeps its ciphertext, so encryption's randomness never shows up as a change.
+
+**Joining** — `muster sync init <repo>` clones the repo into `<MUSTER_HOME>/sync`. An empty repo becomes a sync repo seeded with this machine (the passphrase is new and asked twice). A repo other machines use restores this one: what the repo has wins — `settings.json` keeps its own provider env, and every file overwritten is backed up first — and what only this machine has is added (its other credentials, the shared settings of a platform new to the repo). A sync repo is its `main` branch; a remote with branches but no `main`, or without `muster.json`, is refused. A join that fails leaves the machine as it was, with no clone.
+
+**Syncing** — the clone's HEAD is what this machine last synced, so every sync is a three-way merge, and git does the merging:
+
+1. **Export** — the machine's state is written into the clone and committed: shared settings, credentials (a removed one is deleted), tracked files. A tracked file missing here is restored by the apply, not deleted; only `muster untrack` stops tracking a file.
+2. **Merge** — fetch, then merge `origin/main`. Edits to different parts of the shared settings merge by hunk; different credentials are different files. When both sides changed the same thing, the merge is undone, nothing is applied, and the conflicts are reported (exit 1) until `--prefer local` or `--prefer remote` picks a side: per hunk where git can, per file where it can't (changed on one side, deleted on the other).
+3. **Apply** — the merge goes onto the machine: `settings.json` gets the merged shared settings with this machine's provider env put back where it stood (a file whose shared part didn't change is left alone, formatting and all), the registry gets the merged credentials, the home directory the tracked files. Every file overwritten is backed up (`backups/<name>-<time>-<pid><ext>`, newest 20 per name).
+4. **Push** — if another machine pushed in the meantime, the sync merges again (three rounds at most). A push that fails leaves the merge applied and committed; the next sync pushes it.
+
+A sync spends seconds on the network, so it holds a lock of its own (`sync.lock`) throughout, and the store lock only while it reads and writes the machine. The apply re-reads the machine under the store lock and starts over if anything changed since the export; the agent takes no lock, so an edit it makes in that same instant can still lose, and the backup is the way back.
+
+Syncing is manual. `muster sync status` works out offline what the next sync sends and whether a push is still owed. JSON: `sync` and `sync init` print `{ "version": 1, "sent": [...], "received": [...], "conflicts": [...] }` with items `{kind: settings|credential|file, name}`; `sync status` prints `{ "version": 1, "repo", "platform", "pending": [{kind, name, change: added|modified|removed}], "unpushed", "tracked": ["~/…"] }`; `track` and `untrack` print `{ "version": 1, "tracked": [...] }`.
+
 ## Agent skill
 
-`skills/muster/SKILL.md` teaches an agent the agent-facing surface: `cred list --json`, `default --json` and `run --dry-run --json` to look, and `muster run` in a sibling pane to start another instance beside itself (the skill holds the herdr commands; Muster itself never drives a multiplexer). It forbids the agent from handling keys. Its frontmatter follows the open SKILL.md spec, which `go test ./internal/repocheck` checks.
+`skills/muster/SKILL.md` teaches an agent the agent-facing surface: `cred list --json`, `default --json` and `run --dry-run --json` to look, and `muster run` in a sibling pane to start another instance beside itself (the skill holds the herdr commands; Muster itself never drives a multiplexer), and `sync status --json` and `sync --json` to sync, with the choice of side in a conflict left to the user. It forbids the agent from handling keys and the sync passphrase. Its frontmatter follows the open SKILL.md spec, which `go test ./internal/repocheck` checks.
 
 ## Platform isolation
 
-All platform differences live in `internal/platform`: data, home and application-config directories, file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.
+All platform differences live in `internal/platform`: data, home and application-config directories, the platform's name (which part of the sync repo a machine uses), file locking, renames, process liveness, how a command is spawned (in the foreground or detached) and how its exit code reads. Everything else is platform-agnostic.

@@ -129,3 +129,27 @@ func TestProviderEnv(t *testing.T) {
 		t.Fatalf("ProviderEnv = %v", env)
 	}
 }
+
+func TestEntriesRoundTrip(t *testing.T) {
+	r := &Registry{secrets: map[string]string{}}
+	b := valid()
+	b.Name = "b"
+	for _, c := range []Credential{b, valid()} {
+		if err := r.Add(c, "sk-"+c.Name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	back, err := FromEntries(r.Entries())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if k, _ := back.Secret("b"); k != "sk-b" || len(back.Credentials) != 2 || back.Credentials[0].Name != "b" {
+		t.Fatalf("round trip lost something: %+v", back.Entries())
+	}
+	if _, err := FromEntries([]Entry{{valid(), "sk"}, {valid(), "sk"}}); err == nil {
+		t.Error("duplicate names accepted")
+	}
+	if _, err := FromEntries([]Entry{{valid(), ""}}); err == nil {
+		t.Error("an entry without a key accepted")
+	}
+}

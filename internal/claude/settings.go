@@ -69,7 +69,7 @@ func SetProviderEnv(settings []byte, env map[string]string) ([]byte, error) {
 	envValue := object(out)
 	if envAt >= 0 {
 		top[envAt].value = envValue
-	} else {
+	} else if len(fresh) > 0 {
 		top = append(top, member{"env", envValue})
 	}
 
@@ -80,6 +80,12 @@ func SetProviderEnv(settings []byte, env map[string]string) ([]byte, error) {
 	buf.WriteByte('\n')
 	return buf.Bytes(), nil
 }
+
+// SharedSettings is a settings file without its provider env — the part every
+// instance and every machine of the platform shares. "env" stays where it
+// stood, even if nothing is left in it, so the provider env goes back in the
+// same place.
+func SharedSettings(settings []byte) ([]byte, error) { return SetProviderEnv(settings, nil) }
 
 // members splits a JSON object into its members, in order, values verbatim.
 func members(b []byte) ([]member, error) {

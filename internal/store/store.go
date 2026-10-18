@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/YukiagoTpf/muster/internal/platform"
@@ -40,11 +41,20 @@ func Open(getenv func(string) string) (*Store, error) {
 // Path is the absolute path of a file inside the store.
 func (s *Store) Path(name string) string { return filepath.Join(s.Dir, name) }
 
-// WithLock runs fn while holding the store's single cross-process lock. Hold
-// it across the whole read → decide → write sequence. It is not reentrant:
-// take it once, at the top of a command.
-func (s *Store) WithLock(fn func() error) error {
-	path := s.Path("lock")
+// WithLock runs fn while holding the store's cross-process lock. Hold it
+// across the whole read → decide → write sequence. It is not reentrant: take
+// it once, at the top of a command.
+func (s *Store) WithLock(fn func() error) error { return s.withLockFile("lock", fn) }
+
+// WithSyncLock runs fn while holding the sync repo's lock, which keeps two
+// muster processes out of the sync clone at once. A sync spends seconds on the
+// network, so it holds this lock throughout and takes WithLock only around its
+// reads and writes of the store and the agent's files — always inside
+// WithSyncLock, never the other way round.
+func (s *Store) WithSyncLock(fn func() error) error { return s.withLockFile("sync.lock", fn) }
+
+func (s *Store) withLockFile(name string, fn func() error) error {
+	path := s.Path(name)
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
@@ -60,19 +70,24 @@ func (s *Store) WithLock(fn func() error) error {
 	return fn()
 }
 
-// Backup saves bytes about to be overwritten as backups/<kind>-<time>-<pid>.json
-// (0600) and prunes that kind's pool to the newest keep files. It returns the
-// backup's path.
-func (s *Store) Backup(kind string, data []byte, keep int) (string, error) {
+// BackupsKept is how many backups of one file Muster keeps.
+const BackupsKept = 20
+
+// Backup saves the bytes of a file about to be overwritten, named after it:
+// settings.json goes to backups/settings-<time>-<pid>.json (0600). It prunes
+// the backups of that name to the newest keep and returns the backup's path.
+func (s *Store) Backup(name string, data []byte, keep int) (string, error) {
 	dir := s.Path("backups")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
-	path := filepath.Join(dir, fmt.Sprintf("%s-%s-%d.json", kind, time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid()))
+	ext := filepath.Ext(name)
+	stem := strings.TrimSuffix(name, ext)
+	path := filepath.Join(dir, fmt.Sprintf("%s-%s-%d%s", stem, time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), ext))
 	if err := WriteAtomic(path, data, 0o600); err != nil {
 		return "", err
 	}
-	pool, err := filepath.Glob(filepath.Join(dir, kind+"-*.json"))
+	pool, err := filepath.Glob(filepath.Join(dir, stem+"-*"+ext))
 	if err != nil {
 		return path, err
 	}

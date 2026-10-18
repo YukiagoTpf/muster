@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/YukiagoTpf/muster/internal/fakeagent"
+	"github.com/YukiagoTpf/muster/internal/syncrepo"
 )
 
 // TestMain doubles as a fake agent (see fakeagent), so `muster run` can be
@@ -14,5 +15,6 @@ func TestMain(m *testing.M) {
 	// Background refreshes would re-execute the test binary; tests that care
 	// swap in a recorder.
 	spawnBackground = func(IO, ...string) error { return nil }
+	syncrepo.ScryptWorkFactor = 10 // a passphrase that takes a second to check is for real use
 	os.Exit(m.Run())
 }

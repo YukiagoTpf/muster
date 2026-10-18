@@ -49,6 +49,11 @@ func init() {
 		{"cred list", "muster cred list [--json]", "List credentials (never shows keys)", runCredList},
 		{"cred add", "muster cred add <name> --provider <p> (--from-settings | --base-url <url>) [--model alias=model]... [--env K=V]... [--key-stdin] [--json]", "Register a credential; the key comes from stdin or settings.json, never argv", runCredAdd},
 		{"cred rm", "muster cred rm <name> [--json]", "Remove a credential and its key", runCredRm},
+		{"sync init", "muster sync init <repo> [--passphrase-stdin] [--json]", "Sync this machine through a private git repo: an empty repo is created from it, a used one restores it", runSyncInit},
+		{"sync status", "muster sync status [--json]", "Show what the next sync sends, and the tracked files (offline)", runSyncStatus},
+		{"sync", "muster sync [--prefer local|remote] [--json]", "Send this machine's changes and apply the other machines'; --prefer settles conflicts", runSync},
+		{"track", "muster track [<path>...] [--json]", "Sync files you wrote (scripts, hooks) with the shared settings; no path lists them", runTrack},
+		{"untrack", "muster untrack <path>... [--json]", "Stop syncing files (they stay on every machine)", runUntrack},
 		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
 		{"version", "muster version", "Print the Muster version", runVersion},
 	}

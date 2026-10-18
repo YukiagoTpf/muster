@@ -100,3 +100,13 @@ func TestConfigDir(t *testing.T) {
 		t.Errorf("default = %s", d)
 	}
 }
+
+func TestSecretLookingEnv(t *testing.T) {
+	keys, err := SecretLookingEnv([]byte(`{"env":{"TAVILY_API_KEY":"x","GITHUB_TOKEN":"y","CLAUDE_CODE_MAX_OUTPUT_TOKENS":"9","ENABLE_TOOL_SEARCH":"true"}}`))
+	if err != nil || !reflect.DeepEqual(keys, []string{"GITHUB_TOKEN", "TAVILY_API_KEY"}) {
+		t.Fatalf("keys = %v, %v", keys, err)
+	}
+	if keys, err := SecretLookingEnv([]byte(`{"hooks":{}}`)); err != nil || keys != nil {
+		t.Fatalf("no env: %v, %v", keys, err)
+	}
+}

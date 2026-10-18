@@ -14,9 +14,6 @@ import (
 	"github.com/YukiagoTpf/muster/internal/store"
 )
 
-// backupsKept is how many settings.json backups `muster default` keeps.
-const backupsKept = 20
-
 func runDefault(sys IO, args []string) int {
 	npos := 0
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -152,7 +149,7 @@ func setDefault(sys IO, path, name string, asJSON bool) int {
 			return fmt.Errorf("%s: %w — fix it by hand; nothing was changed", path, err)
 		}
 		if old != nil {
-			if backup, err = s.Backup("settings", old, backupsKept); err != nil {
+			if backup, err = s.Backup("settings.json", old, store.BackupsKept); err != nil {
 				return err
 			}
 		}

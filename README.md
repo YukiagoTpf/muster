@@ -44,7 +44,17 @@ muster default              # which credential plain `claude` and IDE plugins us
 muster default codex-pool   # make it codex-pool (rewrites only the provider part of settings.json, backs it up first)
 ```
 
+```bash
+# keep your machines in step through a private git repo of your own (create an empty one first)
+muster sync init git@github.com:you/muster-sync.git   # an empty repo starts from this machine; a used one restores it
+muster track ~/.claude/statusline.sh                    # sync a file you wrote along with the shared settings
+muster sync                 # send this machine's changes, apply the others' (both changed the same thing? --prefer local|remote)
+muster sync status          # what the next sync sends — offline
+```
+
 A launch overrides only the provider part of Claude Code's settings — base URL, key, model mapping — and leaves your hooks, permissions and plugins alone. Whatever your `~/.claude/settings.json` sets for its own provider (the *default credential*, used when you run `claude` directly or from an IDE) is blanked for the launch, so nothing of it leaks into an instance that uses another credential. Split your terminal however you like and run one `muster run` per pane.
+
+Sync carries everything else in `settings.json` — the *shared settings* — between machines of one platform (Windows machines share one copy, Macs another), along with the files you track and, for every platform, your credentials. The default credential never leaves its machine. Credentials go to the repo encrypted with [age](https://age-encryption.org) under a passphrase you choose when the repo is created and type once per machine. Sync drives your own `git`, so the repo authenticates the way your git already does.
 
 Agents get the same surface: `skills/muster/` is a skill that teaches one to list credentials, check a launch with `--dry-run --json`, and open another instance in a side pane.
 

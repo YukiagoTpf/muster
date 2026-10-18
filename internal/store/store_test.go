@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -75,6 +76,14 @@ func TestWithLockReturnsFnError(t *testing.T) {
 	}
 }
 
+func TestSyncLockNestsTheStoreLock(t *testing.T) {
+	s := open(t)
+	err := s.WithSyncLock(func() error { return s.WithLock(func() error { return nil }) })
+	if err != nil {
+		t.Fatalf("the store lock inside the sync lock: %v", err)
+	}
+}
+
 func TestWriteAtomicReplacesWithoutLeftovers(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "f.json")
@@ -138,7 +147,7 @@ func TestBackupPrunesToKeep(t *testing.T) {
 	s := open(t)
 	var last string
 	for i := 0; i < 4; i++ {
-		p, err := s.Backup("settings", []byte{byte('a' + i)}, 2)
+		p, err := s.Backup("settings.json", []byte{byte('a' + i)}, 2)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -153,5 +162,12 @@ func TestBackupPrunesToKeep(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(pool[0]); string(got) != "c" {
 		t.Fatalf("oldest kept = %q (the oldest must go first)", got)
+	}
+	p, err := s.Backup("statusline.sh", []byte("x"), 2)
+	if err != nil || filepath.Ext(p) != ".sh" || !strings.HasPrefix(filepath.Base(p), "statusline-") {
+		t.Fatalf("a backup keeps the file's name and extension: %s, %v", p, err)
+	}
+	if pool, _ := filepath.Glob(filepath.Join(s.Dir, "backups", "settings-*.json")); len(pool) != 2 {
+		t.Fatalf("another file's backup pruned the settings pool: %v", pool)
 	}
 }

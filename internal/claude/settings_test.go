@@ -88,3 +88,27 @@ func TestSetProviderEnvRefusesWhatItCannotRead(t *testing.T) {
 		}
 	}
 }
+
+func TestSharedSettingsRoundTrip(t *testing.T) {
+	shared, err := SharedSettings([]byte(userSettings))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(shared), "ANTHROPIC_") || !strings.Contains(string(shared), `"ENABLE_TOOL_SEARCH": "true"`) {
+		t.Fatalf("shared settings:\n%s", shared)
+	}
+	provider, err := ProviderEnv([]byte(userSettings))
+	if err != nil || len(provider) != 3 {
+		t.Fatalf("provider env %v, %v", provider, err)
+	}
+	// Putting the provider env back gives the file as a provider rewrite
+	// leaves it: the round trip loses nothing.
+	back, _ := SetProviderEnv(shared, provider)
+	want, _ := SetProviderEnv([]byte(userSettings), provider)
+	if string(back) != string(want) {
+		t.Fatalf("round trip:\n%s\nwant:\n%s", back, want)
+	}
+	if got, _ := SharedSettings([]byte(`{"model":"opus"}`)); string(got) != "{\n  \"model\": \"opus\"\n}\n" {
+		t.Fatalf("a file without env gained one: %s", got)
+	}
+}

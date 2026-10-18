@@ -143,6 +143,33 @@ func (r *Registry) Secret(name string) (string, bool) {
 	return k, ok && k != ""
 }
 
+// Entry is a credential with its key: what the sync repo carries, encrypted.
+type Entry struct {
+	Credential Credential `json:"credential"`
+	Key        string     `json:"key"`
+}
+
+// Entries lists every credential with its key, in registry order.
+func (r *Registry) Entries() []Entry {
+	out := make([]Entry, 0, len(r.Credentials))
+	for _, c := range r.Credentials {
+		out = append(out, Entry{c, r.secrets[c.Name]})
+	}
+	return out
+}
+
+// FromEntries builds a registry holding exactly these credentials, each
+// validated as Add validates it.
+func FromEntries(entries []Entry) (*Registry, error) {
+	r := &Registry{secrets: map[string]string{}}
+	for _, e := range entries {
+		if err := r.Add(e.Credential, e.Key); err != nil {
+			return nil, err
+		}
+	}
+	return r, nil
+}
+
 // ErrNotFound reports a credential name that is not registered.
 var ErrNotFound = errors.New("no such credential")
 

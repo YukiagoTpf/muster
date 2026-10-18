@@ -4,6 +4,7 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,6 +73,26 @@ func IsSecretEnvKey(key string) bool {
 	return IsProviderEnvKey(key) && secretWord.MatchString(key)
 }
 
+// SecretLookingEnv lists the env keys of a settings file whose names say they
+// hold a secret (…_TOKEN, …_API_KEY, …), sorted. Shared settings must carry
+// none: they reach the sync repo unencrypted.
+func SecretLookingEnv(settingsFile []byte) ([]string, error) {
+	var settings struct {
+		Env map[string]json.RawMessage `json:"env"`
+	}
+	if err := json.Unmarshal(settingsFile, &settings); err != nil {
+		return nil, err
+	}
+	var keys []string
+	for k := range settings.Env {
+		if secretWord.MatchString(k) {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return keys, nil
+}
+
 var modelKey = regexp.MustCompile(`^ANTHROPIC_DEFAULT_([A-Z0-9]+)_MODEL$`)
 
 // ModelEnvKey is the env key that maps a model alias (opus, sonnet, …).
@@ -123,11 +144,23 @@ func ReadProviderEnv(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	env, err := ProviderEnv(b)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return env, nil
+}
+
+// ProviderEnv returns the provider env keys a settings file's content sets.
+// Empty content sets nothing.
+func ProviderEnv(settingsFile []byte) (map[string]string, error) {
 	var settings struct {
 		Env map[string]any `json:"env"`
 	}
-	if err := json.Unmarshal(b, &settings); err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
+	if len(bytes.TrimSpace(settingsFile)) > 0 {
+		if err := json.Unmarshal(settingsFile, &settings); err != nil {
+			return nil, err
+		}
 	}
 	env := map[string]string{}
 	for k, v := range settings.Env {

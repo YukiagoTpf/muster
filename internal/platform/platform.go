@@ -62,6 +62,16 @@ func AppConfigDir(getenv func(string) string) (string, error) {
 	}
 }
 
+// Name is this platform as the sync repo names it: windows, macos or linux.
+// Machines on one platform share a copy of the shared settings; two platforms
+// never share one.
+func Name() string {
+	if runtime.GOOS == "darwin" {
+		return "macos"
+	}
+	return runtime.GOOS
+}
+
 // UserHome is the user's home directory (USERPROFILE on Windows, HOME
 // elsewhere).
 func UserHome(getenv func(string) string) (string, error) {
