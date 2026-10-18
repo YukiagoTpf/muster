@@ -313,6 +313,15 @@ const attempts = 3
 func (r *Repo) Sync(prefer string) (Result, error) {
 	res := Result{Sent: []Item{}, Received: []Item{}, Conflicts: []Item{}}
 	err := r.m.Store.WithSyncLock(func() error {
+		// A sync killed mid-merge leaves the merge in the clone; undo it
+		// rather than commit its conflict markers.
+		if merging, err := r.git.test("rev-parse", "-q", "--verify", "MERGE_HEAD"); err != nil {
+			return err
+		} else if merging {
+			if _, err := r.git.run("merge", "--abort"); err != nil {
+				return err
+			}
+		}
 		for range attempts {
 			tracked, err := r.tracked()
 			if err != nil {

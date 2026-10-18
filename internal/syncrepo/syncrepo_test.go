@@ -454,3 +454,24 @@ func TestJoinRefusesARepoMusterDidNotMake(t *testing.T) {
 		t.Fatal("a refused join left its clone behind")
 	}
 }
+
+func TestSyncUndoesAMergeLeftHalfDone(t *testing.T) {
+	t.Parallel()
+	url := remote(t)
+	a := newMachine(t, "a", "windows")
+	a.writeSettings(settingsA)
+	a.join(url)
+	b := newMachine(t, "b", "windows")
+	b.join(url)
+	a.writeSettings(strings.Replace(a.settings(), `"Stop": "a"`, `"Stop": "from-a"`, 1))
+	a.sync("")
+	b.writeSettings(strings.Replace(b.settings(), `"Stop": "a"`, `"Stop": "from-b"`, 1))
+	rb, _ := Open(b.Machine)
+	s, _ := b.read(nil)
+	rb.export(s, false, "x")
+	rb.git.run("fetch", "-q", "origin")
+	rb.git.run("merge", "-q", "--no-edit", rb.upstream()) // conflicts, and is left so
+	if res := b.sync(""); len(res.Conflicts) != 1 || strings.Contains(b.settings(), "<<<<<<<") {
+		t.Fatalf("after a half-done merge: %+v\n%s", res, b.settings())
+	}
+}
