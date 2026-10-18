@@ -4,7 +4,7 @@ Agent entrypoint for working on this repo. Read this first; it stays short — l
 
 ## Project model
 
-Muster launches coding agents per credential and shows every subscription's quota at a glance. It is a Go rewrite of AgentSwap (the Node tool, preserved at tag `v0.4.0` and on `main`), developed on the `muster` branch. The plan is [docs/rebrand/vision.md](docs/rebrand/vision.md), the vocabulary is [docs/rebrand/CONTEXT.md](docs/rebrand/CONTEXT.md) — use its terms (credential, subscription account, default credential, shared settings, …) in code and docs. Design: [docs/architecture.md](docs/architecture.md); decisions: [docs/adr/](docs/adr/).
+Muster launches coding agents per credential and shows every subscription's quota at a glance. It is a Go rewrite of AgentSwap (the Node tool, preserved at tag `v0.4.0` and on `main`), developed on the `muster` branch. The plan is [docs/vision.md](docs/vision.md), the vocabulary is [CONTEXT.md](CONTEXT.md) — use its terms (credential, subscription account, default credential, shared settings, …) in code and docs. Design: [docs/architecture.md](docs/architecture.md); decisions: [docs/adr/](docs/adr/).
 
 Three mechanisms carry the tool:
 

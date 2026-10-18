@@ -1,6 +1,6 @@
 # Architecture
 
-Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/vision.md); the words used here are defined in [rebrand/CONTEXT.md](rebrand/CONTEXT.md).
+Muster is one Go binary. The plan and scope are in [vision.md](vision.md); the words used here are defined in [CONTEXT.md](../CONTEXT.md).
 
 ## Layout
 
@@ -48,7 +48,7 @@ Names are matched exactly but kept unique ignoring case. Secrets are written bef
 
 1. **Strip** — the child's process env is the parent's minus every provider key, so a stale token exported in the shell can't shadow the credential.
 2. **Inject** — the credential's whole provider env (base URL, key as `ANTHROPIC_AUTH_TOKEN`, carried env) goes into a private settings file passed as `--settings`. The `--settings` layer outranks the user settings key by key, which is what lets the credential override the default credential while every hook, permission and plugin of the shared settings still applies.
-3. **Blank** — every provider key the default credential sets in `settings.json` that this credential does not set is put into the same file as `""`. Claude Code treats a blank value as unset, so, say, the default credential's `ANTHROPIC_DEFAULT_SONNET_MODEL=…[1M]` can't leak into an instance whose credential maps no sonnet. (Verified against Claude Code 2.1.296; see `docs/rebrand/vision.md` §7.)
+3. **Blank** — every provider key the default credential sets in `settings.json` that this credential does not set is put into the same file as `""`. Claude Code treats a blank value as unset, so, say, the default credential's `ANTHROPIC_DEFAULT_SONNET_MODEL=…[1M]` can't leak into an instance whose credential maps no sonnet. (Verified against Claude Code 2.1.296; see `docs/vision.md` §7.)
 
 The private settings file is `<MUSTER_HOME>/run/<pid>-<nonce>.json`, 0600, removed when the agent exits; it holds the key, so it never sits on a command line or in output. A file whose owning muster process is gone (crash, kill) is collected by the next launch; a live owner's file is kept however old it is. While the agent runs, Ctrl-C belongs to the agent; muster returns the agent's exit code (128 + signal on Unix when it was killed).
 

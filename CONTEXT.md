@@ -1,6 +1,6 @@
 # Muster：领域词汇
 
-> 状态：讨论稿，随 `vision.md` 的讨论更新。代码里仍是 profile 模型；开始实现时本文件移到仓库根目录。
+> 状态：随实现更新。产品方向见 [docs/vision.md](docs/vision.md)。
 
 统一登记多来源的凭据，一目了然地看额度，并按凭据启动（单个或并排）Claude Code 实例。
 
