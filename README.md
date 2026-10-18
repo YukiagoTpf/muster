@@ -27,7 +27,9 @@ muster cred add codex-pool --provider astergate --base-url https://gw.example.co
 muster cred list            # add --json for agents; keys are never shown
 muster cred rm codex-pool
 
-# launch Claude Code in this pane with a credential (and optionally a model)
+# launch Claude Code in this pane: pick a credential, then a model — the last launch is preselected
+muster
+# … or say it outright (agents and scripts do)
 muster run claude-pool -m opus
 muster run codex-pool -- --resume      # args after -- go to Claude Code
 muster run codex-pool --dry-run        # what would be set, blanked and stripped — key names only

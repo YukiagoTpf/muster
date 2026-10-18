@@ -15,6 +15,7 @@ Thanks for your interest in Muster. (Agents working on this repo: read [AGENTS.m
 
 | Module | Why the standard library is not enough |
 | --- | --- |
+| `golang.org/x/term` | Raw terminal mode and terminal size for the interactive picker; the standard library has neither. |
 | `golang.org/x/sys` | Windows file locking (`LockFileEx`), process liveness (`OpenProcess`) and transient rename errors. The standard library's `syscall` package does not expose them on Windows. |
 
 ## Development

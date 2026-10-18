@@ -52,7 +52,7 @@ func init() {
 // Main runs one muster invocation and returns its exit code.
 func Main(args []string, sys IO) int {
 	if len(args) == 0 {
-		return runHelp(sys, nil)
+		return runPick(sys)
 	}
 	for _, c := range commands {
 		words := strings.Fields(c.name)

@@ -39,3 +39,7 @@ func ExitCode(e *exec.ExitError) int {
 	}
 	return e.ExitCode()
 }
+
+// EnableVT makes out interpret ANSI escape sequences and returns a restore
+// func. Unix terminals always do.
+func EnableVT(*os.File) func() { return func() {} }

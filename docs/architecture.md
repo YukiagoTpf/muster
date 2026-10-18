@@ -11,6 +11,7 @@ Muster is one Go binary. The plan and scope are in [rebrand/vision.md](rebrand/v
 | `internal/claude` | Everything Muster knows about Claude Code: its settings path, which env keys belong to the provider, the model-alias env keys. Another agent would get its own package. |
 | `internal/credential` | The credential registry. |
 | `internal/launch` | Turning a credential into a running instance, and the last-launch state. |
+| `internal/picker` | The interactive chooser behind a bare `muster`. |
 | `internal/fakeagent` | A stand-in agent for tests (the test binary re-executes itself as one). |
 | `internal/platform` | Every OS difference. Nothing outside it branches on the operating system. |
 | `internal/store` | The data directory, its lock, and atomic JSON writes. |
@@ -49,6 +50,12 @@ The private settings file is `<MUSTER_HOME>/run/<pid>-<nonce>.json`, 0600, remov
 `--dry-run` prints the decided launch — the command with a placeholder for the settings file, and the names of the keys it sets, blanks and strips — and never a value. The agent binary is `claude` on `PATH`, or `MUSTER_CLAUDE_BIN`. On Windows an npm-installed `.cmd` shim runs through `cmd.exe /d /s /c` with one fully quoted command line.
 
 Each launch records the credential, and the model per credential, in `state.json`; the picker offers them first.
+
+## Picker
+
+A bare `muster` in a terminal is the quickest launch: a list of credentials (provider, gateway host, mapped models), then that credential's model aliases plus the agent's own default; Enter launches, so a repeat of the last launch is two keypresses. Arrows or j/k move, a digit picks a row directly, Esc goes back, q quits. A credential that maps no alias skips the model screen. Without a terminal on both ends a bare `muster` prints help instead.
+
+`picker.Screen` is pure — keys in, cursor and lines out — and `picker.Terminal` does the I/O: raw mode, hidden cursor, the frame redrawn in place with every line cut to the terminal width (a wrapped line would break the redraw), and the frame erased on exit so only the launch line remains. On a Windows console, virtual-terminal processing is switched on for the picker's lifetime.
 
 ## Platform isolation
 

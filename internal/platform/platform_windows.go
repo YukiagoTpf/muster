@@ -98,3 +98,18 @@ func processAlive(pid int) bool {
 	}
 	return code == stillActive
 }
+
+// EnableVT makes a console interpret ANSI escape sequences and returns a
+// restore func. Output that is not a console (a pseudo-terminal, a pipe) is
+// left alone.
+func EnableVT(out *os.File) func() {
+	h := windows.Handle(out.Fd())
+	var mode uint32
+	if err := windows.GetConsoleMode(h, &mode); err != nil {
+		return func() {}
+	}
+	if err := windows.SetConsoleMode(h, mode|windows.ENABLE_VIRTUAL_TERMINAL_PROCESSING); err != nil {
+		return func() {}
+	}
+	return func() { windows.SetConsoleMode(h, mode) }
+}
