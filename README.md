@@ -15,6 +15,21 @@ go build -o muster ./cmd/muster
 ./muster help
 ```
 
+## Usage
+
+```bash
+# register a credential — import the gateway you already use from ~/.claude/settings.json …
+muster cred add claude-pool --provider astergate --from-settings
+# … or describe one, with the key on stdin (it never goes on the command line)
+muster cred add codex-pool --provider astergate --base-url https://gw.example.com \
+  --model opus=gpt-x --model haiku=gpt-x-mini --key-stdin < key.txt
+
+muster cred list            # add --json for agents; keys are never shown
+muster cred rm codex-pool
+```
+
+Every command accepts `--json` and prints `{ "version": 1, ... }`; `muster help --json` describes them all.
+
 ## Documentation
 
 - [docs/rebrand/vision.md](docs/rebrand/vision.md) — what Muster is and what the first version covers

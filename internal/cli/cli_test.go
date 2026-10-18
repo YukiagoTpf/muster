@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 )
@@ -10,8 +11,15 @@ import (
 // run invokes Main with captured output and the given environment.
 func run(t *testing.T, env map[string]string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
+	return runWith(t, env, nil, args...)
+}
+
+// runWith is run with stdin.
+func runWith(t *testing.T, env map[string]string, in *os.File, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
 	var out, errb bytes.Buffer
 	sys := IO{
+		In:     in,
 		Out:    &out,
 		Err:    &errb,
 		Getenv: func(k string) string { return env[k] },

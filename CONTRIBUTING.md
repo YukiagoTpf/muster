@@ -22,7 +22,7 @@ Thanks for your interest in Muster. (Agents working on this repo: read [AGENTS.m
 ```bash
 go test ./...                                   # run everything, including the repo guardrails
 go vet ./...
-MUSTER_HOME=/tmp/m CLAUDE_CONFIG_DIR=/tmp/c go run ./cmd/muster help        # isolated manual testing
+MUSTER_HOME=/tmp/m CLAUDE_CONFIG_DIR=/tmp/c go run ./cmd/muster cred list   # isolated manual testing
 ```
 
 Tests live next to the code. End-to-end tests run the CLI against temp `MUSTER_HOME` and `CLAUDE_CONFIG_DIR` directories and stand in a fake agent binary (`MUSTER_CLAUDE_BIN`) — never touch a real config.

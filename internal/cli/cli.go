@@ -40,6 +40,9 @@ var commands []command
 
 func init() {
 	commands = []command{
+		{"cred list", "muster cred list [--json]", "List credentials (never shows keys)", runCredList},
+		{"cred add", "muster cred add <name> --provider <p> (--from-settings | --base-url <url>) [--model alias=model]... [--env K=V]... [--key-stdin] [--json]", "Register a credential; the key comes from stdin or settings.json, never argv", runCredAdd},
+		{"cred rm", "muster cred rm <name> [--json]", "Remove a credential and its key", runCredRm},
 		{"help", "muster help [--json]", "Show commands (--json: machine-readable schema)", runHelp},
 		{"version", "muster version", "Print the Muster version", runVersion},
 	}
@@ -51,11 +54,12 @@ func Main(args []string, sys IO) int {
 		return runHelp(sys, nil)
 	}
 	for _, c := range commands {
-		if c.name == args[0] {
-			return c.run(sys, args[1:])
+		words := strings.Fields(c.name)
+		if len(args) >= len(words) && strings.Join(args[:len(words)], " ") == c.name {
+			return c.run(sys, args[len(words):])
 		}
 	}
-	fmt.Fprintf(sys.Err, "muster: unknown command %q (see `muster help`)\n", args[0])
+	fmt.Fprintf(sys.Err, "muster: unknown command %q (see `muster help`)\n", strings.Join(args[:min(2, len(args))], " "))
 	return 2
 }
 
@@ -78,7 +82,7 @@ func runHelp(sys IO, args []string) int {
 	var b strings.Builder
 	b.WriteString("muster — launch coding agents per credential, see every quota at a glance\n\nCommands:\n")
 	for _, c := range commands {
-		fmt.Fprintf(&b, "  %-44s %s\n", c.usage, c.summary)
+		fmt.Fprintf(&b, "  %s\n      %s\n", c.usage, c.summary)
 	}
 	fmt.Fprint(sys.Out, b.String())
 	return 0
