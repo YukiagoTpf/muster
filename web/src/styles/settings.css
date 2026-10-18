@@ -469,8 +469,25 @@
 
 .hook-handler {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+}
+
+.hook-handler > svg {
+  margin-top: 9px;
+}
+
+.hook-group .hook-command {
+  height: auto;
+  min-height: 32px;
+  max-height: 168px;
+  padding: 6px 12px;
+  line-height: 1.5;
+  resize: none;
+  field-sizing: content;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--surface);
 }
 
 .hook-timeout {

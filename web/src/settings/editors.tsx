@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useLang } from '../lib/i18n';
-import { Badge, Button, IconButton, Segmented, TextInput, Toggle } from '../ui/controls';
+import { Badge, Button, IconButton, Segmented, TextArea, TextInput, Toggle } from '../ui/controls';
 import { Icon } from '../ui/Icon';
 import { Select } from '../ui/overlays';
 import { HOOK_EVENTS, MARKET_SOURCES, type ListField, type SetField } from './catalog';
@@ -559,7 +559,14 @@ function HookGroup({ ev, gi, g, groupCount }: { ev: string; gi: number; g: JsonO
         return (
           <div key={hi} className="hook-handler">
             <Icon name="terminal" size={15} className="faint" />
-            <TextInput mono className="grow" value={(h.command as string) ?? ''} placeholder={L('shell 命令', 'shell command')} onChange={(e) => ed.write([...p, 'command'], e.target.value)} />
+            <TextArea
+              mono
+              className="grow hook-command"
+              rows={Math.min(8, Math.max(1, Math.ceil((((h.command as string) ?? '').length + 1) / 90)))}
+              value={(h.command as string) ?? ''}
+              placeholder={L('shell 命令', 'shell command')}
+              onChange={(e) => ed.write([...p, 'command'], e.target.value)}
+            />
             <TextInput
               className="hook-timeout"
               inputMode="numeric"
